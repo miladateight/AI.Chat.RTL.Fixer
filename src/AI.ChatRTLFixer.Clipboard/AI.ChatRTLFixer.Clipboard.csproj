@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI.ChatRTLFixer.Core\AI.ChatRTLFixer.Core.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Rules\AI.ChatRTLFixer.Rules.csproj" />
+  </ItemGroup>
+
+</Project>

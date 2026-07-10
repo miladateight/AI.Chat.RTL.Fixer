@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI.ChatRTLFixer.Core\AI.ChatRTLFixer.Core.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Diagnostics\AI.ChatRTLFixer.Diagnostics.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Rules\AI.ChatRTLFixer.Rules.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Fonts\AI.ChatRTLFixer.Fonts.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Clipboard\AI.ChatRTLFixer.Clipboard.csproj" />
+  </ItemGroup>
+
+</Project>

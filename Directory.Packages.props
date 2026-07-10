@@ -1,0 +1,26 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Test stack -->
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <!-- JS engine for TEST/REFERENCE evaluator only (NOT referenced by runtime projects).
+         Used by AI.ChatRTLFixer.Rules.Tests to execute the canonical rtlfixer.rules.js
+         so unit tests exercise the exact same code injected at runtime. -->
+    <PackageVersion Include="Jint" Version="4.1.0" />
+    <!-- Playwright drives a real (headless) Chromium to test the injected script,
+         MutationObserver, copy event, protected code blocks and restore cleanup
+         against a mock DOM that mirrors an Electron chat surface. -->
+    <PackageVersion Include="Microsoft.Playwright" Version="1.47.0" />
+    <!-- Windows-only: process command-line access via WMI -->
+    <PackageVersion Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

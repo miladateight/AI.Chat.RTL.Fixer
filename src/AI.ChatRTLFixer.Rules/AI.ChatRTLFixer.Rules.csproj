@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI.ChatRTLFixer.Core\AI.ChatRTLFixer.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The canonical rule engine is JavaScript and is shared between runtime
+       injection and tests. It is embedded here as a resource so both the
+       ScriptBuilder (Injectors) and the Jint reference evaluator (tests) load
+       the SAME file, preventing logic divergence between C# and JS. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\rules\rule-engine.shared.json">
+      <Link>rules\rule-engine.shared.json</Link>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\assets\rules\rtlfixer.rules.js">
+      <Link>rules\rtlfixer.rules.js</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

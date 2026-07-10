@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <!-- Playwright drives a real (headless) Chromium to test the injected script,
+         MutationObserver, copy event, protected code blocks and restore cleanup
+         against a mock DOM that mirrors an Electron chat surface. -->
+    <PackageReference Include="Microsoft.Playwright" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AI.ChatRTLFixer.Rules\AI.ChatRTLFixer.Rules.csproj" />
+    <ProjectReference Include="..\..\src\AI.ChatRTLFixer.Injectors\AI.ChatRTLFixer.Injectors.csproj" />
+    <ProjectReference Include="..\..\src\AI.ChatRTLFixer.Fonts\AI.ChatRTLFixer.Fonts.csproj" />
+    <ProjectReference Include="..\..\src\AI.ChatRTLFixer.Clipboard\AI.ChatRTLFixer.Clipboard.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

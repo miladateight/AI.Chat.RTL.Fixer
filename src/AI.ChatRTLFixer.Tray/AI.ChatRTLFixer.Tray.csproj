@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>..\..\assets\icons\rtlfixer.ico</ApplicationIcon>
+    <AssemblyName>AI.ChatRTLFixer.Tray</AssemblyName>
+    <!-- Jint is intentionally NOT referenced here: the JS rule engine is shipped
+         as an embedded resource and injected verbatim into the target page.
+         C# never interprets JS at runtime. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI.ChatRTLFixer.Core\AI.ChatRTLFixer.Core.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Diagnostics\AI.ChatRTLFixer.Diagnostics.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Rules\AI.ChatRTLFixer.Rules.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Profiles\AI.ChatRTLFixer.Profiles.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Fonts\AI.ChatRTLFixer.Fonts.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Clipboard\AI.ChatRTLFixer.Clipboard.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Injectors\AI.ChatRTLFixer.Injectors.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Win32\AI.ChatRTLFixer.Win32.csproj" />
+  </ItemGroup>
+
+</Project>

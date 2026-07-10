@@ -1,0 +1,49 @@
+using AI.ChatRTLFixer.Core;
+using AI.ChatRTLFixer.Core.Rules;
+
+namespace AI.ChatRTLFixer.Rules.Tests;
+
+public class DirectionTests
+{
+    private readonly ReferenceEvaluator _eval = new();
+
+    // (name, text, expectedDirection, expectedProtected)
+    public static IEnumerable<object[]> Cases => new[]
+    {
+        // RTL-only blocks -> RTL, not protected.
+        new object[] { "persian-only", "سلام دنیا، این یک پیام فارسی است.", BlockDirection.Rtl, false },
+        new object[] { "arabic-only", "مرحبا بالعالم، هذه رسالة باللغة العربية.", BlockDirection.Rtl, false },
+        new object[] { "hebrew-only", "שלום עולם, זהו מסר בעברית.", BlockDirection.Rtl, false },
+        new object[] { "urdu-only", "ہیلو دنیا، یہ ایک اردو پیام ہے۔", BlockDirection.Rtl, false },
+
+        // English-only -> LTR, not protected.
+        new object[] { "english-only", "Hello world, this is an English message.", BlockDirection.Ltr, false },
+
+        // Mixed Persian + English (RTL present) -> RTL.
+        new object[] { "mixed-fa-en", "از Claude برای کدنویسی استفاده کن use it wisely.", BlockDirection.Rtl, false },
+        new object[] { "persian-with-numbers", "نسخه 3 از فایل در پوشه ۲ وجود دارد.", BlockDirection.Rtl, false },
+
+        // Persian with embedded technical tokens -> still RTL block (tokens detected, not whole-block technical).
+        new object[] { "persian-with-winpath", "فایل در مسیر C:\\Users\\Milad\\Project قرار دارد.", BlockDirection.Rtl, false },
+        new object[] { "persian-with-linuxpath", "لاگ‌ها در /var/log/app.log ذخیره می‌شوند.", BlockDirection.Rtl, false },
+        new object[] { "persian-with-url", "برای اطلاعات بیشتر به https://example.com/fa مراجعه کن.", BlockDirection.Rtl, false },
+        new object[] { "persian-with-inline-code", "برای اجرا از `dotnet build` استفاده کن.", BlockDirection.Rtl, false },
+        new object[] { "persian-with-command", "برای نصب اجرا کن: npm install", BlockDirection.Rtl, false },
+
+        // Markdown Persian -> RTL (content-driven).
+        new object[] { "md-heading", "# عنوان فارسی\nاین یک بخش فارسی است.", BlockDirection.Rtl, false },
+        new object[] { "md-bullet", "- مورد اول فارسی\n- مورد دوم فارسی\n- مورد سوم", BlockDirection.Rtl, false },
+        new object[] { "md-numbered", "1. قدم اول فارسی\n2. قدم دوم فارسی", BlockDirection.Rtl, false },
+        new object[] { "md-blockquote", "> این یک نقل‌قول فارسی است.", BlockDirection.Rtl, false },
+    };
+
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void Classify_MatchesExpected(string _1, string text, BlockDirection expectedDirection, bool expectedProtected)
+    {
+        _ = _1;
+        var c = _eval.Classify(text);
+        Assert.Equal(expectedDirection, c.Direction);
+        Assert.Equal(expectedProtected, c.Protected);
+    }
+}

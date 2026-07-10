@@ -1,0 +1,32 @@
+## .NET
+bin/
+obj/
+artifacts/
+publish/
+*.user
+*.suo
+*.userprefs
+*.vs/
+.vs/
+
+## IDE
+.idea/
+*.swp
+*~
+
+## OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+## Logs / runtime
+*.log
+logs/
+
+## Build outputs
+*.exe
+*.dll
+*.pdb
+*.nupkg
+**/PublishProfiles/*.user
+**/PublishProfiles/*.pubxml.user

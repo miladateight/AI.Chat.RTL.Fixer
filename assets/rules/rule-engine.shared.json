@@ -1,0 +1,19 @@
+{
+  "$schema": "rtlfixer.rules/v1",
+  "rtlRanges": [
+    { "name": "Arabic", "from": "0x0600", "to": "0x06FF" },
+    { "name": "Arabic Supplement", "from": "0x0750", "to": "0x077F" },
+    { "name": "Arabic Extended-A", "from": "0x08A0", "to": "0x08FF" },
+    { "name": "Arabic Presentation Forms-A", "from": "0xFB50", "to": "0xFDFF" },
+    { "name": "Arabic Presentation Forms-B", "from": "0xFE70", "to": "0xFEFF" },
+    { "name": "Hebrew", "from": "0x0590", "to": "0x05FF" },
+    { "name": "Hebrew Presentation Forms", "from": "0xFB1D", "to": "0xFB4F" }
+  ],
+  "thresholds": { "rtlRatio": 0.30, "technicalRatio": 0.60 },
+  "protectedTypes": [
+    "codeBlock", "inlineCode", "command", "winPath", "linuxPath", "url",
+    "json", "yaml", "xml", "toml", "ini", "env", "log", "stackTrace",
+    "diff", "branchName", "packageName", "versionNumber", "modelName",
+    "badge", "label"
+  ]
+}
