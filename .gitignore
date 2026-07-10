@@ -30,3 +30,14 @@ logs/
 *.nupkg
 **/PublishProfiles/*.user
 **/PublishProfiles/*.pubxml.user
+
+## Publish / distribution
+dist/
+publish/
+
+## Bundled tooling (Inno Setup compiler, local dotnet, etc.) - not committed
+.tools/
+
+## Demo / screenshots (regenerated locally)
+demo/
+demo-*.png

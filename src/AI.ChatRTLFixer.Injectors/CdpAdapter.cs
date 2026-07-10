@@ -54,16 +54,15 @@ public sealed class CdpAdapter : ITargetAdapter
         var cdp = profile.Cdp!;
         var bind = Constants.LoopbackAddress;
 
-        IReadOnlyList<CdpTarget> targets;
-        try
+        var discovery = await _discovery.DiscoverDetailedAsync(port, cdp.TargetTitlePattern, ct);
+        if (discovery.Failure is not null)
         {
-            targets = await _discovery.DiscoverAsync(port, cdp.TargetTitlePattern, ct);
+            _logger.Log(LogLevel.Warning, LogCategories.Cdp, "tcp-check-failed", ("port", port), ("reason", ToLogReason(discovery.Failure.Value)));
+            return AttachResult.Failed(ToAttachFailure(discovery.Failure.Value), discovery.Detail ?? "discovery-failed");
         }
-        catch (Exception ex)
-        {
-            _logger.Log(LogLevel.Error, LogCategories.Cdp, "discovery-failed", ("port", port));
-            return AttachResult.Failed(AttachFailure.DiscoveryFailed, SafeLogger.Redact(ex.Message));
-        }
+        var targets = discovery.Targets;
+        if (discovery.Version is { } version)
+            _logger.Log(LogLevel.Information, LogCategories.Cdp, "version-ok", ("port", port), ("browser", version.Browser ?? "unknown"), ("protocol", version.ProtocolVersion ?? "unknown"));
 
         if (targets.Count == 0)
             return AttachResult.Failed(AttachFailure.NoMatchingTarget, "no matching page target", false);
@@ -91,6 +90,7 @@ public sealed class CdpAdapter : ITargetAdapter
         }
 
         _logger.Log(LogLevel.Information, LogCategories.Cdp, "attached", ("bind", bind), ("port", port));
+        _logger.Log(LogLevel.Information, LogCategories.Cdp, "target-selected", ("targetType", target.Type ?? "unknown"));
         StartListening();
         return AttachResult.Ok(bind);
     }
@@ -99,11 +99,10 @@ public sealed class CdpAdapter : ITargetAdapter
     {
         if (!IsAttached) throw new InvalidOperationException("not attached");
 
-        // Font + CSS via a single style element each.
-        if (!string.IsNullOrEmpty(payload.FontBase64))
+        // Font style (complete @font-face + scoped font-family) via one style element.
+        if (!string.IsNullOrEmpty(payload.FontCss))
         {
-            var fontCss = BuildFontStyleFromPayload(payload);
-            await InjectStyleAsync(Constants.FontStyleId, fontCss, ct);
+            await InjectStyleAsync(Constants.FontStyleId, payload.FontCss, ct);
         }
         await InjectStyleAsync(Constants.CssStyleId, payload.Css, ct);
 
@@ -126,20 +125,6 @@ public sealed class CdpAdapter : ITargetAdapter
         {
             _logger.Log(LogLevel.Warning, LogCategories.Restore, "restore-partial");
         }
-    }
-
-    private static string BuildFontStyleFromPayload(InjectionPayload p)
-    {
-        // The font CSS is built by the host (FontPack) for non-base64 cases; here
-        // we just inline the provided base64 as an @font-face.
-        var sb = new StringBuilder();
-        if (!string.IsNullOrEmpty(p.FontBase64))
-        {
-            sb.Append("@font-face { font-family: \"Vazirmatn\"; font-style: normal; font-weight: 100 900; font-display: swap; ");
-            sb.Append("src: url(data:font/ttf;base64,").Append(p.FontBase64).Append(") format('truetype'); }\n");
-        }
-        sb.Append(p.FontFamilyCss);
-        return sb.ToString();
     }
 
     private void StartListening()
@@ -215,6 +200,30 @@ public sealed class CdpAdapter : ITargetAdapter
     {
         try { return new Uri(url).Host; } catch { return "?"; }
     }
+
+    private static string ToLogReason(CdpDiscoveryFailure failure) => failure switch
+    {
+        CdpDiscoveryFailure.PortClosed => "port-closed",
+        CdpDiscoveryFailure.ConnectionRefused => "connection-refused",
+        CdpDiscoveryFailure.HttpTimeout => "http-timeout",
+        CdpDiscoveryFailure.InvalidJson => "invalid-json",
+        CdpDiscoveryFailure.NoPageTarget => "no-page-target",
+        CdpDiscoveryFailure.WebSocketUrlMissing => "websocket-url-missing",
+        CdpDiscoveryFailure.TargetNotMatchingProfile => "target-not-matching-profile",
+        _ => "unknown",
+    };
+
+    private static AttachFailure ToAttachFailure(CdpDiscoveryFailure failure) => failure switch
+    {
+        CdpDiscoveryFailure.PortClosed => AttachFailure.PortClosed,
+        CdpDiscoveryFailure.ConnectionRefused => AttachFailure.ConnectionRefused,
+        CdpDiscoveryFailure.HttpTimeout => AttachFailure.Timeout,
+        CdpDiscoveryFailure.InvalidJson => AttachFailure.InvalidJson,
+        CdpDiscoveryFailure.NoPageTarget => AttachFailure.NoPageTarget,
+        CdpDiscoveryFailure.WebSocketUrlMissing => AttachFailure.WebSocketUrlMissing,
+        CdpDiscoveryFailure.TargetNotMatchingProfile => AttachFailure.TargetNotMatchingProfile,
+        _ => AttachFailure.DiscoveryFailed,
+    };
 
     public async ValueTask DisposeAsync()
     {

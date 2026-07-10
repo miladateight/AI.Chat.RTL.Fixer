@@ -26,6 +26,18 @@ public sealed class DetectedApp
 
     /// <summary>Parsed debug port if <see cref="HasDebugPort"/> is true.</summary>
     public int? DebugPort { get; init; }
+
+    /// <summary>Inclusive min port for the random free picker (from settings).</summary>
+    public int PortMin { get; init; } = 49152;
+
+    /// <summary>Inclusive max port for the random free picker (from settings).</summary>
+    public int PortMax { get; init; } = 65535;
+
+    public string MatchReason { get; init; } = "process-name";
+    public string? ProductName { get; init; }
+    public string? FileDescription { get; init; }
+    public string[] WindowTitles { get; init; } = [];
+    public int? ParentProcessId { get; init; }
 }
 
 /// <summary>Watches for supported AI desktop apps starting and exiting.</summary>
@@ -38,7 +50,7 @@ public interface IProcessWatcher : IDisposable
     event EventHandler<DetectedApp>? AppChanged;
 
     /// <summary>Raised when a previously detected app exits.</summary>
-    event EventHandler<string>? AppExited;
+    event EventHandler<DetectedApp>? AppExited;
 
     void Start();
     void Stop();
@@ -68,6 +80,9 @@ public sealed class RelaunchResult
 
     /// <summary>The command string shown to the user for manual reopen, when applicable.</summary>
     public string? ManualCommand { get; init; }
+
+    /// <summary>Whether the new process command line was observed to retain the CDP arguments.</summary>
+    public bool DebugArgsVerified { get; init; }
 }
 
 /// <summary>

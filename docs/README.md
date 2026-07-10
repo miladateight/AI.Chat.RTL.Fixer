@@ -110,4 +110,4 @@ dotnet publish src/AI.ChatRTLFixer.Tray -p:PublishProfile=framework-dependent
 dotnet publish src/AI.ChatRTLFixer.Tray -p:PublishProfile=self-contained-win-x64
 ```
 
-GitHub: https://github.com/placeholder/ai-chat-rtl-fixer
+GitHub: https://github.com/miladateight/ai-chat-rtl-fixer

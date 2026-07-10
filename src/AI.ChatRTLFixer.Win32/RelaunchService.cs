@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Management;
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Abstractions;
 using AI.ChatRTLFixer.Core.Profiles;
@@ -48,7 +49,7 @@ public sealed class RelaunchService : IRelaunchService
             return new RelaunchResult { Success = false, UserConsented = false };
         }
 
-        var port = _portPicker.PickFreePort(profile.Cdp.PortMode == CdpPortMode.RandomFree ? 49152 : 49152, 65535);
+        var port = _portPicker.PickFreePort(app.PortMin, app.PortMax);
         if (port is null)
             return new RelaunchResult { Success = false, UserConsented = true, Detail = "no free port", Unsafe = true };
 
@@ -69,9 +70,18 @@ public sealed class RelaunchService : IRelaunchService
         try
         {
             // Close the existing process gracefully.
-            var existing = Process.GetProcessById(app.ProcessId);
-            try { existing.CloseMainWindow(); if (!existing.WaitForExit(3000)) existing.Kill(); }
-            catch { /* may have already exited */ }
+            using var existing = Process.GetProcessById(app.ProcessId);
+            try
+            {
+                if (!existing.CloseMainWindow()) throw new InvalidOperationException("main-window-not-found");
+                if (!existing.WaitForExit(5000)) throw new TimeoutException("timeout");
+            }
+            catch (Exception ex)
+            {
+                var reason = ex is TimeoutException ? "timeout" : ex.Message == "main-window-not-found" ? "main-window-not-found" : "unknown";
+                _logger.Log(LogLevel.Warning, LogCategories.Relaunch, "close-failed", ("app", profile.AppId), ("reason", reason));
+                return new RelaunchResult { Success = false, UserConsented = true, Detail = "close-failed:" + reason, Unsafe = true };
+            }
         }
         catch (Exception ex)
         {
@@ -82,6 +92,8 @@ public sealed class RelaunchService : IRelaunchService
         {
             var startInfo = new ProcessStartInfo(exe, finalArgs) { UseShellExecute = false };
             var newProc = Process.Start(startInfo);
+            var argsVerified = newProc is not null && WaitForDebugArgs(newProc.Id, port.Value, TimeSpan.FromSeconds(2));
+            _logger.Log(LogLevel.Information, LogCategories.Relaunch, argsVerified ? "args-verified" : "args-ignored", ("app", profile.AppId), ("port", port.Value));
             _logger.Log(LogLevel.Information, LogCategories.Relaunch, "relaunched", ("app", profile.AppId), ("port", port.Value));
             // NOTE: the orchestrator verifies CDP comes up on 127.0.0.1 with a BOUNDED
             // number of retries. If it does not (e.g. Electron single-instance rejected
@@ -92,6 +104,7 @@ public sealed class RelaunchService : IRelaunchService
                 UserConsented = true,
                 NewProcessId = newProc?.Id,
                 DebugPort = port,
+                DebugArgsVerified = argsVerified,
             };
         }
         catch (Exception ex)
@@ -126,5 +139,30 @@ public sealed class RelaunchService : IRelaunchService
         var tokens = rest.Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Where(t => !t.StartsWith("--remote-debugging", StringComparison.OrdinalIgnoreCase));
         return tokens;
+    }
+
+    private static bool WaitForDebugArgs(int processId, int port, TimeSpan timeout)
+    {
+        var until = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < until)
+        {
+            try
+            {
+                using var searcher = new ManagementObjectSearcher($"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}");
+                using var results = searcher.Get();
+                foreach (ManagementObject item in results)
+                {
+                    using (item)
+                    {
+                        var commandLine = item["CommandLine"] as string;
+                        if (commandLine?.Contains($"--remote-debugging-port={port}", StringComparison.OrdinalIgnoreCase) == true &&
+                            commandLine.Contains("--remote-debugging-address=127.0.0.1", StringComparison.OrdinalIgnoreCase)) return true;
+                    }
+                }
+            }
+            catch { }
+            Thread.Sleep(100);
+        }
+        return false;
     }
 }

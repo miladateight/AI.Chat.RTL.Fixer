@@ -95,3 +95,26 @@ public enum LogLevel
     Error,
     Critical,
 }
+
+/// <summary>Lifecycle state of one detected target process.  States are intentionally
+/// per process instance, not per profile, because Electron applications can be
+/// restarted while another instance is still being reconciled.</summary>
+public enum AppRuntimeState
+{
+    Unknown,
+    Detected,
+    RunningNoDebugPort,
+    RelaunchRequired,
+    RelaunchPromptShown,
+    Relaunching,
+    WaitingForCdp,
+    CdpDiscovered,
+    Attached,
+    InjectionSucceeded,
+    InjectionFailed,
+    CdpUnsupported,
+    DebugArgsIgnored,
+    Exited,
+    DisabledByUser,
+    Unsupported,
+}

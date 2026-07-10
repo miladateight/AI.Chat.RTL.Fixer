@@ -52,6 +52,21 @@
 - [x] ProfileRegistry matches known process
 - [x] ProfileRegistry does not match unknown process
 - [x] No builtin profile is Stable without a verified TestedAppVersion
+- [x] Profile matching by executable path when the process name differs
+- [x] Profile matching by product name / file-description signal
+- [x] Runtime-control defaults keep auto-relaunch opt-in and retries bounded
+
+### Runtime orchestration manual checks
+
+- [ ] Startup snapshot finds apps already open before the tray app starts.
+- [ ] An unchanged reconciliation snapshot emits no duplicate state transition.
+- [ ] Global disabled still displays detected apps as disabled and does not attach.
+- [ ] A no-CDP app shows **Requires Relaunch** once, without log spam.
+- [ ] A failed relaunch enters cooldown; it does not close the app again automatically.
+- [ ] CDP diagnostics distinguish port closed, timeout, invalid JSON, no page target,
+  missing websocket URL and target/profile mismatch.
+- [ ] Export Detection Report contains no chat content and only includes executable paths
+  when selected by the user.
 
 ## Integration tests (Playwright, mock DOM in real headless Chromium)
 
@@ -90,6 +105,31 @@ To be run against a real installed app once a profile is marked Stable:
 - [ ] CPU usage stays within budget (idle ~0%, streaming < 5% one core then < 1%).
 - [ ] No external network calls (verify via netstat: only 127.0.0.1).
 - [ ] Restarting the target app normally returns it to a clean state.
+
+## Installer & packaging (v0.1)
+
+Automated in this environment (via `scripts\build-all.ps1`):
+
+- [x] `dotnet build AI.ChatRTLFixer.sln` succeeds (0 warnings, 0 errors).
+- [x] `dotnet test AI.ChatRTLFixer.sln` — 66/66 pass (Core 10, Rules 40, Integration 16 incl. Playwright).
+- [x] `scripts\publish.ps1` produces both portable outputs under `dist\`.
+- [x] `scripts\package-installer.ps1` compiles `dist\installer\AIChatRTLFixerSetup-0.1.0.exe` (Inno Setup, "Verification successful") + `.sha256`.
+- [x] Published exe file properties: ProductVersion `0.1.0`, FileVersion `0.1.0.0`, Company `Milad AT8`, Product `AI Chat RTL Fixer`.
+- [x] Self-contained exe launches, stays responsive, creates `%AppData%\AIChatRTLFixer\{settings.json, logs\rtlfixer.log}`.
+
+Manual, on a real machine (needs admin for Program Files; not run in the build
+environment because the session was non-elevated):
+
+- [ ] Run `AIChatRTLFixerSetup-0.1.0.exe`; UAC prompt appears (Program Files install).
+- [ ] Installs to `C:\Program Files\AI Chat RTL Fixer`; exe/shortcut show the app icon.
+- [ ] Start Menu shortcut **AI Chat RTL Fixer** launches the tray app.
+- [ ] Desktop shortcut is created only when its (unchecked) task is selected.
+- [ ] "Launch after install" is optional (unchecked) and works when selected.
+- [ ] Re-running setup while the app is open closes it safely (no forced kill of other apps).
+- [ ] Installer does **not** enable "Start with Windows" (verify HKCU\...\Run has no entry).
+- [ ] Uninstall from *Settings → Apps* removes installed files under Program Files.
+- [ ] Uninstall asks (defaulting to No) before deleting `%AppData%\AIChatRTLFixer`; declining keeps settings/logs.
+- [ ] After uninstall, the HKCU Run entry (if the user had enabled startup) is removed.
 
 ## Acceptance criteria
 

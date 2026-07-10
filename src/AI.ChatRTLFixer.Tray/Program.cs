@@ -22,6 +22,8 @@ internal static class Program
         var profiles = new ProfileRegistry();
         var portPicker = new PortPicker();
         var watcher = new ProcessWatcher(profiles, logger);
+        watcher.SetPortRange(settings.PortRange.Min, settings.PortRange.Max);
+        watcher.Configure(settings.ReconciliationIntervalSeconds, settings.DeveloperDiagnosticsEnabled, settings.InitialScanDelayMs);
         var relaunch = new RelaunchService(logger, portPicker);
         var orchestrator = new Orchestrator(logger, profiles, watcher, relaunch, settingsStore, settings);
 

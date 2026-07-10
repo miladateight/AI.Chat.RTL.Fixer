@@ -57,6 +57,45 @@ public class CoreUnitTests
     }
 
     [Fact]
+    public void ProfileRegistry_MatchesByExecutablePath_WhenProcessNameDiffers()
+    {
+        var profile = new AppProfile
+        {
+            AppId = "path-profile", DisplayName = "Path Profile", ProcessNames = ["ExpectedName"],
+            ExecutablePathPatterns = ["Claude\\Claude.exe"],
+        };
+        var registry = new ProfileRegistry([profile]);
+
+        Assert.True(registry.TryMatchProcess("unexpected", "C:\\Users\\x\\Claude\\Claude.exe", null, null, null, null, out var matched, out var reason));
+        Assert.Equal("path-profile", matched.AppId);
+        Assert.Equal("executable-path", reason);
+    }
+
+    [Fact]
+    public void ProfileRegistry_MatchesByProductName_WhenMarketingNameDiffersFromExe()
+    {
+        var profile = new AppProfile
+        {
+            AppId = "codex", DisplayName = "Codex", ProcessNames = ["ExpectedName"], ProductNamePatterns = ["OpenAI Codex"],
+        };
+        var registry = new ProfileRegistry([profile]);
+
+        Assert.True(registry.TryMatchProcess("desktop", null, "OpenAI Codex Desktop", null, null, null, out var matched, out var reason));
+        Assert.Equal("codex", matched.AppId);
+        Assert.Equal("version-info", reason);
+    }
+
+    [Fact]
+    public void Settings_Defaults_EnableBoundedRuntimeControls()
+    {
+        var settings = new AI.ChatRTLFixer.Core.Settings.AppSettings();
+        Assert.False(settings.AutoRelaunchAfterConsent);
+        Assert.InRange(settings.ReconciliationIntervalSeconds, 2, 5);
+        Assert.True(settings.DiscoveryTimeoutSeconds >= 2);
+        Assert.True(settings.RelaunchCooldownSeconds >= 10);
+    }
+
+    [Fact]
     public void BuiltinProfiles_NoStableWithoutVerifiedVersion()
     {
         // v0.1 rule: a profile is only Stable after a real verified version.

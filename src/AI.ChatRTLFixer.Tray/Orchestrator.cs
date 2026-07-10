@@ -6,15 +6,10 @@ using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Fonts;
 using AI.ChatRTLFixer.Injectors;
 using AI.ChatRTLFixer.Profiles;
-using AI.ChatRTLFixer.Win32;
 
 namespace AI.ChatRTLFixer.Tray;
 
-/// <summary>
-/// Coordinates process watching, profile matching, attach/relaunch and injection.
-/// Bounded retries only: if CDP does not come up on 127.0.0.1 within a few
-/// attempts, the profile is reported Experimental/Unsupported (no infinite retry).
-/// </summary>
+/// <summary>Coordinates detection, CDP and relaunch as a bounded per-process state machine.</summary>
 public sealed class Orchestrator : IDisposable
 {
     private readonly SafeLogger _logger;
@@ -22,31 +17,21 @@ public sealed class Orchestrator : IDisposable
     private readonly IProcessWatcher _watcher;
     private readonly IRelaunchService _relaunch;
     private readonly ISettingsStore _settingsStore;
-    private readonly Dictionary<string, CdpAdapter> _adaptersByAppId = new();
+    private readonly Dictionary<int, RuntimeEntry> _entries = new();
+    private readonly object _gate = new();
     private AppSettings _settings;
     private bool _disposed;
 
     public event EventHandler? StateChanged;
-
-    public Orchestrator(
-        SafeLogger logger,
-        ProfileRegistry profiles,
-        IProcessWatcher watcher,
-        IRelaunchService relaunch,
-        ISettingsStore settingsStore,
-        AppSettings initialSettings)
-    {
-        _logger = logger;
-        _profiles = profiles;
-        _watcher = watcher;
-        _relaunch = relaunch;
-        _settingsStore = settingsStore;
-        _settings = initialSettings;
-    }
-
     public IReadOnlyCollection<AppProfile> Profiles => _profiles.All;
-
     public AppSettings Settings => _settings;
+    public IReadOnlyCollection<DetectedApp> PendingRelaunch => Entries().Where(x => x.State is AppRuntimeState.RelaunchRequired or AppRuntimeState.RelaunchPromptShown).Select(x => x.App).ToList();
+    public IReadOnlyCollection<RuntimeAppStatus> RuntimeStatuses => Entries().Select(x => new RuntimeAppStatus(x.App, x.State, x.Detail, x.CooldownUntilUtc)).ToList();
+
+    public Orchestrator(SafeLogger logger, ProfileRegistry profiles, IProcessWatcher watcher, IRelaunchService relaunch, ISettingsStore settingsStore, AppSettings initialSettings)
+    {
+        _logger = logger; _profiles = profiles; _watcher = watcher; _relaunch = relaunch; _settingsStore = settingsStore; _settings = initialSettings;
+    }
 
     public void Start()
     {
@@ -58,128 +43,207 @@ public sealed class Orchestrator : IDisposable
 
     private async void OnAppChanged(object? sender, DetectedApp app)
     {
-        if (!_settings.GlobalEnabled) return;
-        if (!_settings.Apps.TryGetValue(app.AppId, out var toggle) || toggle.Enabled is false) return;
+        try { await ReconcileAsync(app); }
+        catch (Exception ex) { _logger.Log(LogLevel.Error, LogCategories.App, "reconcile-failed", ("app", app.AppId), ("pid", app.ProcessId), ("msg", SafeLogger.Redact(ex.Message))); }
+    }
+
+    private async Task ReconcileAsync(DetectedApp app)
+    {
         if (!_profiles.TryGet(app.AppId, out var profile)) return;
-
-        // Only Electron/CDP profiles can be injected in v0.1.
-        if (profile.UiTechnology != UiTechnology.Electron || profile.Cdp is null)
-        {
-            _logger.Log(LogLevel.Information, LogCategories.Profile, "non-electron-detected", ("app", app.AppId), ("status", profile.Status.ToString()));
-            StateChanged?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-
-        // If the app already has a debug port open, try to attach (bounded).
-        if (app.HasDebugPort && app.DebugPort is int port)
-        {
-            await TryAttachBoundedAsync(profile, port);
-            return;
-        }
-
-        // Otherwise signal that a relaunch is required (UI prompts the user).
-        _logger.Log(LogLevel.Information, LogCategories.Profile, "relaunch-required", ("app", app.AppId));
-        StateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void OnAppExited(object? sender, string pid)
-    {
-        _logger.Log(LogLevel.Information, LogCategories.ProcessWatcher, "app-exited", ("pid", pid));
-        // Detach any adapter whose app is gone; cleanup is automatic (DOM changes vanish on close).
-        foreach (var (appId, adapter) in _adaptersByAppId.ToList())
-        {
-            if (!adapter.IsAttached)
-            {
-                _adaptersByAppId.Remove(appId);
-            }
-        }
-        StateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private async Task TryAttachBoundedAsync(AppProfile profile, int port)
-    {
-        const int maxAttempts = 3;
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
-        {
-            var adapter = GetOrCreateAdapter(profile.AppId);
-            var result = await adapter.AttachToPortAsync(profile, port, CancellationToken.None);
-            if (result.Success && result.VerifiedBindAddress == Constants.LoopbackAddress)
-            {
-                await InjectAsync(adapter, profile);
-                StateChanged?.Invoke(this, EventArgs.Empty);
-                return;
-            }
-            _logger.Log(LogLevel.Warning, LogCategories.Cdp, "attach-attempt-failed",
-                ("app", profile.AppId), ("attempt", attempt), ("failure", result.Failure?.ToString() ?? "unknown"));
-            await Task.Delay(500);
-        }
-
-        // Bounded retries exhausted: do NOT loop forever. Report Experimental/Unsupported.
-        _logger.Log(LogLevel.Error, LogCategories.Cdp, "attach-exhausted", ("app", profile.AppId));
-        // Downgrade in-memory status (does not mutate the builtin profile object's
-        // canonical status, but signals the UI). The UI shows Experimental/Unsupported.
-        StateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private async Task InjectAsync(CdpAdapter adapter, AppProfile profile)
-    {
-        var fontBase64 = FontPack.LoadVazirmatnBase64();
-        var fontFamilyCss = FontPack.FontFamilyCss(_settings.SelectedFont, _settings.CustomFontPath);
-        var css = CssBuilder.Build(profile.Selectors);
-        var script = ScriptBuilder.Build(profile, _settings.CopyMode);
-        var payload = new InjectionPayload
-        {
-            FontBase64 = fontBase64,
-            FontFamilyCss = fontFamilyCss,
-            Css = css,
-            Script = script,
-            CopyMode = _settings.CopyMode,
-        };
+        var entry = GetOrAdd(app);
+        await entry.Gate.WaitAsync();
         try
         {
-            await adapter.InjectAsync(payload, CancellationToken.None);
-            _logger.Log(LogLevel.Information, LogCategories.Injector, "injected", ("app", profile.AppId));
+            entry.App = app;
+            if (!_settings.GlobalEnabled || (_settings.Apps.TryGetValue(app.AppId, out var setting) && !setting.Enabled))
+            {
+                Transition(entry, AppRuntimeState.DisabledByUser, "global-or-app-disabled");
+                return;
+            }
+            if (profile.Status is SupportStatus.Unsupported or SupportStatus.Planned || profile.UiTechnology != UiTechnology.Electron || profile.Cdp is null)
+            {
+                Transition(entry, AppRuntimeState.Unsupported, "profile-does-not-support-runtime-injection");
+                return;
+            }
+            Transition(entry, AppRuntimeState.Detected, app.MatchReason);
+            if (app.DebugPort is int port)
+            {
+                // An already-running Electron process can publish its endpoint a
+                // moment after its command line becomes visible. Retry only to
+                // the configured discovery deadline, with backoff.
+                await WaitForCdpAndAttachAsync(entry, profile, port, afterRelaunch: false);
+                return;
+            }
+
+            Transition(entry, AppRuntimeState.RunningNoDebugPort, "no-remote-debugging-port");
+            if (DateTime.UtcNow < entry.CooldownUntilUtc)
+            {
+                _logger.Log(LogLevel.Information, LogCategories.Relaunch, "cooldown-active", ("app", app.AppId), ("pid", app.ProcessId));
+                return;
+            }
+            Transition(entry, AppRuntimeState.RelaunchRequired, "requires-relaunch");
+            if (_settings.AutoRelaunchAfterConsent)
+                await RelaunchEntryAsync(entry, profile, _ => Task.FromResult(true));
+            else
+                Transition(entry, AppRuntimeState.RelaunchPromptShown, "awaiting-user-consent");
+        }
+        finally { entry.Gate.Release(); StateChanged?.Invoke(this, EventArgs.Empty); }
+    }
+
+    private async Task AttachAsync(RuntimeEntry entry, AppProfile profile, int port, bool afterRelaunch)
+    {
+        entry.Adapter ??= new CdpAdapter(_logger);
+        var timeout = TimeSpan.FromSeconds(Math.Clamp(_settings.DiscoveryTimeoutSeconds, 2, 60));
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(entry.ExitToken);
+        timeoutCts.CancelAfter(timeout);
+        Transition(entry, afterRelaunch ? AppRuntimeState.WaitingForCdp : AppRuntimeState.CdpDiscovered, $"port={port}");
+        AttachResult result;
+        try { result = await entry.Adapter.AttachToPortAsync(profile, port, timeoutCts.Token); }
+        catch (OperationCanceledException) { result = AttachResult.Failed(AttachFailure.Timeout, "discovery-timeout"); }
+        if (!result.Success)
+        {
+            Transition(entry, result.Failure == AttachFailure.Timeout ? AppRuntimeState.CdpUnsupported : AppRuntimeState.CdpUnsupported, result.Failure?.ToString() ?? "discovery-failed");
+            if (afterRelaunch) entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
+            return;
+        }
+        Transition(entry, AppRuntimeState.Attached, $"port={port}");
+        try
+        {
+            await InjectAsync(entry.Adapter, profile, entry.ExitToken);
+            Transition(entry, AppRuntimeState.InjectionSucceeded, "injected");
         }
         catch (Exception ex)
         {
-            _logger.Log(LogLevel.Error, LogCategories.Injector, "inject-failed", ("app", profile.AppId), ("msg", SafeLogger.Redact(ex.Message)));
+            Transition(entry, AppRuntimeState.InjectionFailed, SafeLogger.Redact(ex.Message));
         }
     }
 
-    private CdpAdapter GetOrCreateAdapter(string appId)
+    public async Task<RelaunchResult> RelaunchAsync(DetectedApp app, Func<RelaunchWarning, Task<bool>>? consentCallback)
     {
-        if (_adaptersByAppId.TryGetValue(appId, out var existing)) return existing;
-        var adapter = new CdpAdapter(_logger);
-        _adaptersByAppId[appId] = adapter;
-        return adapter;
+        if (!_profiles.TryGet(app.AppId, out var profile)) return new RelaunchResult { Success = false, UserConsented = false, Detail = "unknown-profile" };
+        var entry = GetOrAdd(app);
+        await entry.Gate.WaitAsync();
+        try
+        {
+            // A null callback is deliberately a rejection: no implicit destructive action.
+            if (consentCallback is null) return new RelaunchResult { Success = false, UserConsented = false, Detail = "consent-required" };
+            return await RelaunchEntryAsync(entry, profile, consentCallback);
+        }
+        finally { entry.Gate.Release(); StateChanged?.Invoke(this, EventArgs.Empty); }
     }
 
-    /// <summary>Relaunch the given app with RTL Fix (user-consented).</summary>
-    public async Task<RelaunchResult> RelaunchAsync(DetectedApp app)
+    private async Task<RelaunchResult> RelaunchEntryAsync(RuntimeEntry entry, AppProfile profile, Func<RelaunchWarning, Task<bool>> consent)
     {
-        if (!_profiles.TryGet(app.AppId, out var profile)) return new RelaunchResult { Success = false, UserConsented = false };
-        return await _relaunch.RelaunchWithRtlFixAsync(app, profile, _ => Task.FromResult(true), CancellationToken.None);
+        if (profile.Status is SupportStatus.Unsupported or SupportStatus.Planned || profile.Cdp is null)
+        {
+            Transition(entry, AppRuntimeState.Unsupported, "relaunch-not-permitted-for-profile");
+            return new RelaunchResult { Success = false, UserConsented = false, Detail = "unsupported-profile" };
+        }
+        if (DateTime.UtcNow < entry.CooldownUntilUtc)
+            return new RelaunchResult { Success = false, UserConsented = true, Detail = "cooldown-active" };
+        Transition(entry, AppRuntimeState.Relaunching, "user-consented");
+        var result = await _relaunch.RelaunchWithRtlFixAsync(entry.App, profile, consent, entry.ExitToken);
+        if (!result.Success)
+        {
+            Transition(entry, AppRuntimeState.RelaunchRequired, result.Detail ?? "relaunch-failed");
+            entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
+            return result;
+        }
+        if (!result.DebugArgsVerified)
+        {
+            Transition(entry, AppRuntimeState.DebugArgsIgnored, "relaunch-args-not-observed");
+            entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
+            return result;
+        }
+        if (result.DebugPort is not int port) return result;
+        Transition(entry, AppRuntimeState.WaitingForCdp, $"port={port}");
+        await WaitForCdpAndAttachAsync(entry, profile, port, afterRelaunch: true);
+        return result;
     }
 
-    /// <summary>Disable globally and restore all runtime modifications.</summary>
+    private async Task WaitForCdpAndAttachAsync(RuntimeEntry entry, AppProfile profile, int port, bool afterRelaunch)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.DiscoveryTimeoutSeconds, 2, 60));
+        var delay = 300;
+        while (DateTime.UtcNow < deadline && !entry.ExitToken.IsCancellationRequested)
+        {
+            await AttachAsync(entry, profile, port, afterRelaunch);
+            if (entry.State is AppRuntimeState.InjectionSucceeded or AppRuntimeState.InjectionFailed) return;
+            if (entry.State == AppRuntimeState.CdpUnsupported) { await Task.Delay(delay, entry.ExitToken).ContinueWith(_ => { }); delay = Math.Min(delay * 2, 2000); }
+        }
+        // The newly-created process must expose the args. The watcher will update it if it appears.
+        var current = _watcher.Snapshot().FirstOrDefault(x => x.AppId == entry.App.AppId && x.ProcessId != entry.App.ProcessId);
+        var argsIgnored = afterRelaunch && current?.HasDebugPort == false;
+        Transition(entry, argsIgnored ? AppRuntimeState.DebugArgsIgnored : AppRuntimeState.CdpUnsupported,
+            argsIgnored ? "debug-args-ignored" : "cdp-discovery-timeout");
+        if (afterRelaunch) entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
+    }
+
+    private async Task InjectAsync(CdpAdapter adapter, AppProfile profile, CancellationToken ct)
+    {
+        var fontCss = FontPack.BuildFontStyle(FontPack.FontFamilyCss(_settings.SelectedFont, _settings.CustomFontPath), profile.Selectors.FontScope, FontPack.LoadVazirmatnBase64());
+        await adapter.InjectAsync(new InjectionPayload { FontCss = fontCss, Css = CssBuilder.Build(profile.Selectors), Script = ScriptBuilder.Build(profile, _settings.CopyMode), CopyMode = _settings.CopyMode }, ct);
+        _logger.Log(LogLevel.Information, LogCategories.Injector, "succeeded", ("app", profile.AppId));
+    }
+
+    private void OnAppExited(object? sender, DetectedApp app)
+    {
+        RuntimeEntry? entry;
+        lock (_gate) { _entries.TryGetValue(app.ProcessId, out entry); _entries.Remove(app.ProcessId); }
+        if (entry is null) return;
+        entry.ExitCts.Cancel();
+        Transition(entry, AppRuntimeState.Exited, "process-exited");
+        _ = entry.Adapter?.DisposeAsync();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task DisableAllAsync()
     {
-        foreach (var (_, adapter) in _adaptersByAppId)
+        foreach (var entry in Entries())
         {
-            try { await adapter.RestoreAsync(CancellationToken.None); } catch { }
+            Transition(entry, AppRuntimeState.DisabledByUser, "disabled-by-user");
+            if (entry.Adapter is not null) { try { await entry.Adapter.RestoreAsync(CancellationToken.None); } catch { } }
         }
         _logger.Log(LogLevel.Information, LogCategories.Restore, "disabled-all");
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private RuntimeEntry GetOrAdd(DetectedApp app)
+    {
+        lock (_gate)
+        {
+            if (!_entries.TryGetValue(app.ProcessId, out var entry)) _entries[app.ProcessId] = entry = new RuntimeEntry(app);
+            return entry;
+        }
+    }
+    private IReadOnlyList<RuntimeEntry> Entries() { lock (_gate) return _entries.Values.ToList(); }
+    private void Transition(RuntimeEntry entry, AppRuntimeState state, string detail)
+    {
+        if (entry.State == state && entry.Detail == detail) return;
+        var previous = entry.State;
+        entry.State = state; entry.Detail = detail;
+        _logger.Log(LogLevel.Information, LogCategories.Profile, "state-changed", ("app", entry.App.AppId), ("pid", entry.App.ProcessId), ("from", previous.ToString()), ("to", state.ToString()));
     }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        _watcher.Stop();
-        foreach (var (_, adapter) in _adaptersByAppId)
-        {
-            try { adapter.DisposeAsync().AsTask().Wait(); } catch { }
-        }
+        if (_disposed) return; _disposed = true; _watcher.Stop();
+        foreach (var entry in Entries()) { entry.ExitCts.Cancel(); try { entry.Adapter?.DisposeAsync().AsTask().Wait(); } catch { } entry.Gate.Dispose(); entry.ExitCts.Dispose(); }
         _watcher.Dispose();
     }
+
+    private sealed class RuntimeEntry
+    {
+        public RuntimeEntry(DetectedApp app) => App = app;
+        public DetectedApp App { get; set; }
+        public AppRuntimeState State { get; set; } = AppRuntimeState.Unknown;
+        public string? Detail { get; set; }
+        public DateTime CooldownUntilUtc { get; set; }
+        public CdpAdapter? Adapter { get; set; }
+        public SemaphoreSlim Gate { get; } = new(1, 1);
+        public CancellationTokenSource ExitCts { get; } = new();
+        public CancellationToken ExitToken => ExitCts.Token;
+    }
 }
+
+public sealed record RuntimeAppStatus(DetectedApp App, AppRuntimeState State, string? Detail, DateTime CooldownUntilUtc);

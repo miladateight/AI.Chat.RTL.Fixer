@@ -21,8 +21,17 @@ public sealed class AppProfile
     /// <summary>Executable path glob patterns, e.g. "**\\Claude\\Claude.exe".</summary>
     public string[] ExecutablePathPatterns { get; set; } = [];
 
+    /// <summary>Product-name or file-description fragments from version info.</summary>
+    public string[] ProductNamePatterns { get; set; } = [];
+
     /// <summary>Window title substrings/regexes, useful when ambiguous.</summary>
     public string[] WindowTitlePatterns { get; set; } = [];
+
+    /// <summary>Known-safe command-line fragments used as an additional signal.</summary>
+    public string[] CommandLinePatterns { get; set; } = [];
+
+    /// <summary>Install location hints used for diagnostics and path matching.</summary>
+    public string[] KnownInstallLocations { get; set; } = [];
 
     public UiTechnology UiTechnology { get; set; } = UiTechnology.Unknown;
 

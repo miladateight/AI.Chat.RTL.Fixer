@@ -9,10 +9,14 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NeutralLanguage>en</NeutralLanguage>
     <Authors>AI Chat RTL Fixer Contributors</Authors>
+    <Company>Milad AT8</Company>
     <Product>AI Chat RTL Fixer</Product>
-    <Copyright>Copyright (c) 2026 AI Chat RTL Fixer Contributors</Copyright>
+    <Copyright>Copyright (c) 2026 Milad AT8</Copyright>
+    <!-- Keep file/product version clean (no +git-hash suffix) so it matches
+         the installer and the About dialog exactly. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/placeholder/ai-chat-rtl-fixer</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/miladateight/ai-chat-rtl-fixer</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <Version>0.1.0</Version>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>

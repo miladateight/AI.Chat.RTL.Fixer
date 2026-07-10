@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <ApplicationIcon>..\..\assets\icons\rtlfixer.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\branding\app-logo.ico</ApplicationIcon>
     <AssemblyName>AI.ChatRTLFixer.Tray</AssemblyName>
     <!-- Jint is intentionally NOT referenced here: the JS rule engine is shipped
          as an embedded resource and injected verbatim into the target page.

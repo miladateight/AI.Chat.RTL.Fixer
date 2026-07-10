@@ -11,7 +11,7 @@ public sealed class AppSettings
     /// <summary>Schema version for forward migrations.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>Global kill switch. When false, no app is touched.</summary>
     public bool GlobalEnabled { get; set; } = true;
@@ -34,6 +34,18 @@ public sealed class AppSettings
     /// enabling this.
     /// </summary>
     public bool DeveloperMode { get; set; }
+
+    /// <summary>Developer diagnostics include paths and ignored candidates in exported reports.</summary>
+    public bool DeveloperDiagnosticsEnabled { get; set; }
+
+    /// <summary>Once a user has consented, supported profiles may be relaunched at startup.</summary>
+    public bool AutoRelaunchAfterConsent { get; set; }
+
+    public int RelaunchCooldownSeconds { get; set; } = 60;
+    public int DiscoveryTimeoutSeconds { get; set; } = 12;
+    public int InitialScanDelayMs { get; set; } = 0;
+    public int ReconciliationIntervalSeconds { get; set; } = 3;
+    public bool ShowUnsupportedApps { get; set; } = true;
 
     public PortRange PortRange { get; set; } = new();
 

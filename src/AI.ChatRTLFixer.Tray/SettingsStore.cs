@@ -65,6 +65,10 @@ public sealed class SettingsStore : ISettingsStore
         {
             s.SchemaVersion = AppSettings.CurrentSchemaVersion;
         }
+        s.RelaunchCooldownSeconds = Math.Clamp(s.RelaunchCooldownSeconds, 10, 3600);
+        s.DiscoveryTimeoutSeconds = Math.Clamp(s.DiscoveryTimeoutSeconds, 2, 60);
+        s.InitialScanDelayMs = Math.Clamp(s.InitialScanDelayMs, 0, 10000);
+        s.ReconciliationIntervalSeconds = Math.Clamp(s.ReconciliationIntervalSeconds, 2, 5);
         return s;
     }
 }

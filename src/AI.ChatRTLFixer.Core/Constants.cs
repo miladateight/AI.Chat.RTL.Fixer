@@ -19,7 +19,7 @@ public static class Constants
     public const string LogFileName = "rtlfixer.log";
 
     /// <summary>GitHub link placeholder (filled when the repo is published).</summary>
-    public const string GitHubLink = "https://github.com/placeholder/ai-chat-rtl-fixer";
+    public const string GitHubLink = "https://github.com/miladateight/ai-chat-rtl-fixer";
 
     /// <summary>No-telemetry statement shown in the UI and README.</summary>
     public const string NoTelemetryStatement =

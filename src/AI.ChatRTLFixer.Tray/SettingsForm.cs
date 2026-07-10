@@ -44,7 +44,7 @@ public sealed class SettingsForm : Form
         Controls.Add(lblApps); y += 22;
         foreach (var p in _orchestrator.Profiles)
         {
-            var enabled = s.Apps.TryGetValue(p.AppId, out var st) ? st.Enabled : false;
+            var enabled = s.Apps.TryGetValue(p.AppId, out var st) ? st.Enabled : true;
             var chk = new CheckBox { Text = $"{p.DisplayName} — {p.Status}", Checked = enabled, Top = y, Left = 32, Width = 380, Tag = p.AppId };
             chk.CheckedChanged += async (_, _) =>
             {
@@ -87,6 +87,18 @@ public sealed class SettingsForm : Form
         };
         Controls.Add(chkStartup); y += 28;
 
+        var chkAutoRelaunch = new CheckBox { Text = "Auto-relaunch after prior consent", Checked = s.AutoRelaunchAfterConsent, Top = y, Left = 16, Width = 340 };
+        chkAutoRelaunch.CheckedChanged += async (_, _) =>
+        {
+            if (chkAutoRelaunch.Checked && MessageBox.Show(
+                "This may close and reopen supported apps at startup after you have explicitly enabled it. Continue?",
+                "Auto relaunch consent", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            { chkAutoRelaunch.Checked = false; return; }
+            s.AutoRelaunchAfterConsent = chkAutoRelaunch.Checked;
+            await _settingsStore.SaveAsync(s, CancellationToken.None);
+        };
+        Controls.Add(chkAutoRelaunch); y += 28;
+
         var chkDev = new CheckBox { Text = "Developer mode (allow short text samples in logs)", Checked = s.DeveloperMode, Top = y, Left = 16, Width = 380 };
         chkDev.CheckedChanged += async (_, _) =>
         {
@@ -96,6 +108,7 @@ public sealed class SettingsForm : Form
                 "Developer mode warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
             { chkDev.Checked = false; return; }
             s.DeveloperMode = chkDev.Checked;
+            s.DeveloperDiagnosticsEnabled = chkDev.Checked;
             await _settingsStore.SaveAsync(s, CancellationToken.None);
         };
         Controls.Add(chkDev); y += 32;

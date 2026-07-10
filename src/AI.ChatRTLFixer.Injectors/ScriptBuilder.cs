@@ -22,6 +22,12 @@ public static class ScriptBuilder
     {
         var s = profile.Selectors;
         var js = RuleResources.LoadRulesJs();
+        // The shared JSON config (ranges/thresholds). The SAME object is fed to
+        // the engine in tests (ReferenceEvaluator.setConfig). Embedding it here
+        // keeps runtime and tests on one source of truth: if the JSON changes,
+        // both sides pick it up instead of the runtime silently using the
+        // hard-coded fallback inside the JS file.
+        var sharedConfigJson = RuleResources.LoadSharedConfig().GetRawText();
 
         var sb = new StringBuilder();
         sb.Append("(function () {\n");
@@ -35,6 +41,9 @@ public static class ScriptBuilder
         sb.Append("  var exports = module.exports;\n");
         sb.Append(js);
         sb.Append("\n  var Rules = module.exports;\n");
+        // Feed the shared config into the engine so thresholds/ranges come from
+        // rule-engine.shared.json, not the JS hard-coded defaults.
+        sb.Append("  Rules.setConfig(" + sharedConfigJson + ");\n");
 
         // Selectors + copy mode config.
         sb.Append("  var CFG = {\n");
@@ -173,14 +182,33 @@ public static class ScriptBuilder
       window.__rtlfixerCopyRoot = root;
     }
 
+    function installComposer() {
+      var composer = document.querySelector(CFG.composer);
+      if (!composer) return;
+      window.__rtlfixerComposer = composer;
+      function onInput() { fixComposer(composer); }
+      composer.addEventListener('input', onInput);
+      composer.addEventListener('keyup', onInput);
+      window.__rtlfixerOnComposerInput = onInput;
+      // Set initial direction.
+      fixComposer(composer);
+    }
+
     startObserver();
     installCopy();
+    installComposer();
 
     window.__rtlfixerRestore = function () {
       try { if (window.__rtlfixerObserver) window.__rtlfixerObserver.disconnect(); } catch (e) {}
       try {
         if (window.__rtlfixerCopyRoot && window.__rtlfixerOnCopy)
           window.__rtlfixerCopyRoot.removeEventListener('copy', window.__rtlfixerOnCopy, true);
+      } catch (e) {}
+      try {
+        if (window.__rtlfixerComposer && window.__rtlfixerOnComposerInput) {
+          window.__rtlfixerComposer.removeEventListener('input', window.__rtlfixerOnComposerInput);
+          window.__rtlfixerComposer.removeEventListener('keyup', window.__rtlfixerOnComposerInput);
+        }
       } catch (e) {}
       var all = document.querySelectorAll('[data-rtlfixer]');
       for (var i = 0; i < all.length; i++) {

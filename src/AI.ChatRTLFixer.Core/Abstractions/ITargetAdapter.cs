@@ -61,6 +61,12 @@ public enum AttachFailure
 {
     ProcessNotFound,
     NoDebugPort,
+    PortClosed,
+    ConnectionRefused,
+    InvalidJson,
+    NoPageTarget,
+    WebSocketUrlMissing,
+    TargetNotMatchingProfile,
     DiscoveryFailed,
     NoMatchingTarget,
     WebSocketFailed,
@@ -72,11 +78,11 @@ public enum AttachFailure
 /// <summary>Everything injected into a page in one pass.</summary>
 public sealed class InjectionPayload
 {
-    /// <summary>Base64-encoded bundled font data (may be null if the font is installed on the system).</summary>
-    public string? FontBase64 { get; init; }
-
-    /// <summary>Font family CSS value, e.g. <c>Vazirmatn, "Noto Sans Arabic", "Segoe UI", Tahoma, Arial</c>.</summary>
-    public required string FontFamilyCss { get; init; }
+    /// <summary>
+    /// Complete font style block (@font-face + scoped font-family), or null if
+    /// no font should be injected. Built by <see cref="FontPack.BuildFontStyle"/>.
+    /// </summary>
+    public string? FontCss { get; init; }
 
     /// <summary>Built CSS for direction/alignment/protection, scoped to the profile selectors.</summary>
     public required string Css { get; init; }
