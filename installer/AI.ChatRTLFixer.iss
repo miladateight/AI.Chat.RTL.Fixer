@@ -9,7 +9,7 @@
 #define MyAppId "{{35E1F24F-FC8C-4E84-ABD9-48E9A34A0BA4}"
 #define MyAppVersion "0.1.0"
 #define MyAppPublisher "Milad AT8"
-#define MyAppURL "https://github.com/miladateight/ai-chat-rtl-fixer"
+#define MyAppURL "https://github.com/miladateight/AI.Chat.RTL.Fixer"
 
 [Setup]
 AppId={#MyAppId}

@@ -16,7 +16,7 @@
          the installer and the About dialog exactly. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/miladateight/ai-chat-rtl-fixer</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/miladateight/AI.Chat.RTL.Fixer</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <Version>0.1.0</Version>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
