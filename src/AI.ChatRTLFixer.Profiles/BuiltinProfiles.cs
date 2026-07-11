@@ -19,6 +19,7 @@ public static class BuiltinProfiles
         ChatGptDesktop(),
         CodexDesktop(),
         ZCode(),
+        OpenCodeDesktop(),
         OpenClaw(),
         HermesAgent(),
         LmStudio(),
@@ -82,16 +83,16 @@ public static class BuiltinProfiles
         Cdp = new CdpStrategy { TargetTitlePattern = "ChatGPT" },
         Selectors = new Selectors
         {
-            ChatContainer = "#main",
+            ChatContainer = "#main, main, #root",
             MessageRoot = "[class*='thread'], main",
             UserMessage = "[data-testid^='conversation-turn-']:nth-child(odd)",
             AssistantMessage = "[data-testid^='conversation-turn-']:nth-child(even)",
-            Composer = "textarea#prompt-textarea, #prompt-textarea",
+            Composer = "textarea#prompt-textarea, #prompt-textarea, textarea, [contenteditable='true']",
             CodeBlock = "pre code",
             InlineCode = "code",
-            CopyRoot = "#main",
+            CopyRoot = "#main, main, #root",
             Protected = ["pre", "code", "kbd"],
-            FontScope = "#main, textarea#prompt-textarea",
+            FontScope = "#main, main, #root, textarea, [contenteditable='true']",
         },
         KnownLimitations = ["Selectors not yet verified against a real installed version. Turn parity relies on DOM order."],
         SafetyNotes = ["Runtime-only via CDP on 127.0.0.1. No permanent modification."],
@@ -112,6 +113,15 @@ public static class BuiltinProfiles
         "zcode", "ZCode", ["ZCode", "zcode", "Zed", "zed"], "ZCode",
         "CDP compatibility and debug-argument handling are unverified; runtime injection remains Experimental.",
         ["ZCode"]);
+
+    /// <summary>
+    /// OpenCode Desktop (@opencode-aidesktop). Electron-based; verified to honor
+    /// --remote-debugging-port. Uses the generic chat selectors.
+    /// </summary>
+    public static AppProfile OpenCodeDesktop() => ElectronExperimental(
+        "opencode-desktop", "OpenCode", ["OpenCode", "opencode"], "OpenCode",
+        "Detection matches the OpenCode desktop GUI only; the 'opencode' CLI/TUI shares the name but is filtered as a non-GUI backend.",
+        ["OpenCode"], ["%LOCALAPPDATA%\\Programs\\@opencode-aidesktop", "%LOCALAPPDATA%\\Programs\\OpenCode"]);
 
     /// <summary>
     /// OpenClaw. UI tech to be confirmed.

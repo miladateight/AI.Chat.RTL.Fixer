@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Management;
+using System.Runtime.InteropServices;
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Abstractions;
 using AI.ChatRTLFixer.Core.Profiles;
@@ -63,25 +64,57 @@ public sealed class RelaunchService : IRelaunchService
         }
 
         // Build args: preserve original args (minus any existing debug args) and append ours.
-        var originalArgs = ParseArgs(app.CommandLine, exe);
+        var originalArgs = ParseArgs(app.CommandLine);
         var debugArgs = profile.Cdp.LaunchArgs.Select(a => a.Replace("${port}", port.Value.ToString()));
-        var finalArgs = string.Join(' ', originalArgs.Concat(debugArgs));
+        var finalArgs = originalArgs.Concat(debugArgs).ToArray();
 
+        // Fully terminate the target app before relaunching. Electron chat apps
+        // (Claude, ChatGPT/Codex, …) minimise to the tray on window-close, so
+        // CloseMainWindow alone never releases Electron's single-instance lock:
+        // a debug relaunch would just be forwarded to the surviving instance and
+        // exit without ever binding a debug port. We close windows gracefully
+        // first, then force-terminate every process running the SAME executable
+        // (main GUI + renderer/GPU children). Termination is scoped by exact
+        // executable path, so an unrelated process that merely shares a name
+        // (e.g. a "claude" CLI vs. Claude Desktop) is never touched.
         try
         {
-            // Close the existing process gracefully.
-            using var existing = Process.GetProcessById(app.ProcessId);
-            try
+            foreach (var pid in FindProcessIdsByExecutable(exe, app.ProcessId))
             {
-                if (!existing.CloseMainWindow()) throw new InvalidOperationException("main-window-not-found");
-                if (!existing.WaitForExit(5000)) throw new TimeoutException("timeout");
+                try
+                {
+                    using var pr = Process.GetProcessById(pid);
+                    if (pr.MainWindowHandle != IntPtr.Zero) pr.CloseMainWindow();
+                }
+                catch { }
             }
-            catch (Exception ex)
+            await Task.Delay(1000, ct);
+            // The single-instance lock is held by the MAIN process, so relaunching
+            // only requires THAT process to be gone. Auxiliary processes
+            // (crashpad-handler is built to outlive the app; a slow renderer/GPU
+            // child) do not hold the lock, and blocking on them would leave the app
+            // closed and never reopened — the "relaunch just closes it" bug. So we
+            // keep force-killing whatever is alive, but only abort if the original
+            // main process itself refuses to die.
+            List<int> alive;
+            var deadline = DateTime.UtcNow.AddSeconds(6);
+            while (true)
             {
-                var reason = ex is TimeoutException ? "timeout" : ex.Message == "main-window-not-found" ? "main-window-not-found" : "unknown";
-                _logger.Log(LogLevel.Warning, LogCategories.Relaunch, "close-failed", ("app", profile.AppId), ("reason", reason));
-                return new RelaunchResult { Success = false, UserConsented = true, Detail = "close-failed:" + reason, Unsafe = true };
+                alive = FindProcessIdsByExecutable(exe, app.ProcessId);
+                if (alive.Count == 0 || DateTime.UtcNow >= deadline) break;
+                foreach (var pid in alive)
+                {
+                    try { using var pr = Process.GetProcessById(pid); pr.Kill(entireProcessTree: true); } catch { }
+                }
+                await Task.Delay(200, ct);
             }
+            if (alive.Contains(app.ProcessId))
+            {
+                _logger.Log(LogLevel.Warning, LogCategories.Relaunch, "close-failed", ("app", profile.AppId), ("reason", "main-still-running"));
+                return new RelaunchResult { Success = false, UserConsented = true, Detail = "close-failed:main-still-running", Unsafe = true };
+            }
+            if (alive.Count > 0)
+                _logger.Log(LogLevel.Information, LogCategories.Relaunch, "relaunch-with-lingering", ("app", profile.AppId), ("count", alive.Count));
         }
         catch (Exception ex)
         {
@@ -90,9 +123,26 @@ public sealed class RelaunchService : IRelaunchService
 
         try
         {
-            var startInfo = new ProcessStartInfo(exe, finalArgs) { UseShellExecute = false };
-            var newProc = Process.Start(startInfo);
-            var argsVerified = newProc is not null && WaitForDebugArgs(newProc.Id, port.Value, TimeSpan.FromSeconds(2));
+            var newProc = StartTarget(exe, finalArgs, useShell: false);
+            if (newProc is null)
+                return new RelaunchResult { Success = false, UserConsented = true, Unsafe = true, Detail = "process-start-returned-null" };
+            // If the new instance vanished within ~1.5s, it was almost certainly
+            // forwarded to a surviving single-instance lock and exited. Wait for the
+            // lock to clear and start once more so the user actually gets a window.
+            await Task.Delay(1500, ct);
+            if (FindProcessIdsByExecutable(exe, app.ProcessId).Count == 0)
+            {
+                _logger.Log(LogLevel.Information, LogCategories.Relaunch, "start-vanished-retry", ("app", profile.AppId));
+                await Task.Delay(1000, ct);
+                newProc = StartTarget(exe, finalArgs, useShell: false) ?? newProc;
+            }
+            var newPid = TryGetId(newProc);
+            // Verify by scanning EVERY process running this executable, not just the
+            // pid we spawned: packaged/MSIX Electron apps often re-exec into a new
+            // pid, so the flag may live on a sibling process. This is only a
+            // diagnostic hint now — the orchestrator attaches based on the actual
+            // CDP endpoint regardless of this result.
+            var argsVerified = WaitForDebugArgs(exe, app.ProcessId, port.Value, TimeSpan.FromSeconds(4));
             _logger.Log(LogLevel.Information, LogCategories.Relaunch, argsVerified ? "args-verified" : "args-ignored", ("app", profile.AppId), ("port", port.Value));
             _logger.Log(LogLevel.Information, LogCategories.Relaunch, "relaunched", ("app", profile.AppId), ("port", port.Value));
             // NOTE: the orchestrator verifies CDP comes up on 127.0.0.1 with a BOUNDED
@@ -102,7 +152,7 @@ public sealed class RelaunchService : IRelaunchService
             {
                 Success = true,
                 UserConsented = true,
-                NewProcessId = newProc?.Id,
+                NewProcessId = newPid,
                 DebugPort = port,
                 DebugArgsVerified = argsVerified,
             };
@@ -120,48 +170,133 @@ public sealed class RelaunchService : IRelaunchService
         return $"\"{profile.DisplayName}\" {args}";
     }
 
-    private static IEnumerable<string> ParseArgs(string? commandLine, string exe)
+    private static IEnumerable<string> ParseArgs(string? commandLine)
     {
         if (string.IsNullOrEmpty(commandLine)) return [];
-        // Strip the executable (quoted or not) from the front.
-        var rest = commandLine;
-        if (rest.StartsWith('"'))
+        var rawArgs = SplitWindowsCommandLine(commandLine).Skip(1).ToList();
+        var result = new List<string>();
+        for (var index = 0; index < rawArgs.Count; index++)
         {
-            var close = rest.IndexOf('"', 1);
-            if (close > 0) rest = rest[(close + 1)..];
+            var argument = rawArgs[index];
+            if (!argument.StartsWith("--remote-debugging-", StringComparison.OrdinalIgnoreCase))
+            {
+                result.Add(argument);
+                continue;
+            }
+
+            // Chromium accepts both --flag=value and --flag value. Remove the
+            // value in the latter form too, otherwise a stale port/address can
+            // become an orphan argument during relaunch.
+            if (!argument.Contains('=') && index + 1 < rawArgs.Count && !rawArgs[index + 1].StartsWith("--", StringComparison.Ordinal))
+                index++;
         }
-        else
-        {
-            var space = rest.IndexOf(' ');
-            if (space > 0) rest = rest[space..]; else rest = "";
-        }
-        // Remove any existing debug args to avoid duplicates.
-        var tokens = rest.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(t => !t.StartsWith("--remote-debugging", StringComparison.OrdinalIgnoreCase));
-        return tokens;
+        return result;
     }
 
-    private static bool WaitForDebugArgs(int processId, int port, TimeSpan timeout)
+    private static IReadOnlyList<string> SplitWindowsCommandLine(string commandLine)
+    {
+        var argv = CommandLineToArgvW(commandLine, out var count);
+        if (argv == IntPtr.Zero || count <= 0) return [];
+        try
+        {
+            var args = new string[count];
+            for (var index = 0; index < count; index++)
+                args[index] = Marshal.PtrToStringUni(Marshal.ReadIntPtr(argv, index * IntPtr.Size)) ?? string.Empty;
+            return args;
+        }
+        finally
+        {
+            _ = LocalFree(argv);
+        }
+    }
+
+    [DllImport("shell32.dll", SetLastError = true)]
+    private static extern IntPtr CommandLineToArgvW(string commandLine, out int argumentCount);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr memory);
+
+    /// <summary>
+    /// Returns the PIDs of every process whose executable path matches <paramref name="exe"/>
+    /// (the main GUI process plus Electron renderer/GPU children, which all run the
+    /// same binary). Matching by exact path means a process that only shares a name
+    /// (e.g. a "claude" CLI running from a different folder) is deliberately excluded.
+    /// </summary>
+    private static List<int> FindProcessIdsByExecutable(string exe, int knownPid)
+    {
+        var pids = new List<int>();
+        try
+        {
+            var escaped = exe.Replace("\\", "\\\\").Replace("'", "\\'");
+            using var searcher = new ManagementObjectSearcher(
+                $"SELECT ProcessId FROM Win32_Process WHERE ExecutablePath = '{escaped}'");
+            using var results = searcher.Get();
+            foreach (ManagementObject item in results)
+            {
+                using (item)
+                {
+                    if (item["ProcessId"] is uint pid) pids.Add(checked((int)pid));
+                }
+            }
+        }
+        catch { }
+        if (pids.Count == 0)
+        {
+            // WMI unavailable: fall back to the single known PID so we still try.
+            try { using var _ = Process.GetProcessById(knownPid); pids.Add(knownPid); } catch { }
+        }
+        return pids;
+    }
+
+    /// <summary>
+    /// Starts the target executable with the given arguments. Tries a direct
+    /// (UseShellExecute=false) launch first; if the OS refuses to execute the
+    /// binary directly (some installed/packaged apps), falls back to a shell
+    /// launch which routes through the OS launcher. Arguments are always passed
+    /// via ArgumentList so paths with spaces are quoted correctly.
+    /// </summary>
+    private Process? StartTarget(string exe, string[] args, bool useShell)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo(exe) { UseShellExecute = useShell };
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            return Process.Start(psi);
+        }
+        catch (System.ComponentModel.Win32Exception) when (!useShell)
+        {
+            _logger.Log(LogLevel.Information, LogCategories.Relaunch, "start-shell-fallback");
+            var psi = new ProcessStartInfo(exe) { UseShellExecute = true };
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            return Process.Start(psi);
+        }
+    }
+
+    private static int? TryGetId(Process? p) { try { return p?.Id; } catch { return null; } }
+
+    private static bool WaitForDebugArgs(string exe, int knownPid, int port, TimeSpan timeout)
     {
         var until = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < until)
         {
-            try
+            foreach (var pid in FindProcessIdsByExecutable(exe, knownPid))
             {
-                using var searcher = new ManagementObjectSearcher($"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}");
-                using var results = searcher.Get();
-                foreach (ManagementObject item in results)
+                try
                 {
-                    using (item)
+                    using var searcher = new ManagementObjectSearcher($"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {pid}");
+                    using var results = searcher.Get();
+                    foreach (ManagementObject item in results)
                     {
-                        var commandLine = item["CommandLine"] as string;
-                        if (commandLine?.Contains($"--remote-debugging-port={port}", StringComparison.OrdinalIgnoreCase) == true &&
-                            commandLine.Contains("--remote-debugging-address=127.0.0.1", StringComparison.OrdinalIgnoreCase)) return true;
+                        using (item)
+                        {
+                            var commandLine = item["CommandLine"] as string;
+                            if (commandLine?.Contains($"--remote-debugging-port={port}", StringComparison.OrdinalIgnoreCase) == true) return true;
+                        }
                     }
                 }
+                catch { }
             }
-            catch { }
-            Thread.Sleep(100);
+            Thread.Sleep(150);
         }
         return false;
     }

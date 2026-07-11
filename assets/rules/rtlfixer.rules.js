@@ -67,6 +67,22 @@
   RtlFixerRules.rtlRatio = rtlRatio;
   RtlFixerRules.isRtlChar = isRtlChar;
 
+  // First strong directional character, mirroring HTML dir="auto" / the Unicode
+  // bidi P2/P3 rule: scan until the first strongly-directional letter and let it
+  // set the base direction. Digits, punctuation and whitespace are skipped. This
+  // is what makes a Persian-first heading like "گزارش نهایی — App 1.2.0" read RTL
+  // even when Latin product names drop its RTL ratio below the threshold.
+  function firstStrongDir(text) {
+    if (!text) return null;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (isRtlChar(ch)) return "rtl";
+      if (/[A-Za-z]/.test(ch)) return "ltr";
+    }
+    return null;
+  }
+  RtlFixerRules.firstStrongDir = firstStrongDir;
+
   // --- Technical text patterns (ES2018-safe: no lookbehind, no named groups)
   var RE = {
     codeFence: /(^|\n)\s*```/,
@@ -167,8 +183,11 @@
       return { direction: "ltr", protected: true, align: "left", tokens: tokens, rtlRatio: ratio, length: len };
     }
 
-    // No RTL content -> LTR.
-    if (ratio < CFG.rtlRatio) {
+    // A block is RTL if it is RTL-heavy (ratio over threshold) OR it simply
+    // begins with an RTL letter (first-strong, like dir="auto"). The second
+    // clause catches Persian-first prose whose Latin product names / paths pull
+    // the ratio just under the threshold — the common miss on coding assistants.
+    if (ratio < CFG.rtlRatio && firstStrongDir(text) !== "rtl") {
       return { direction: "ltr", protected: false, align: "left", tokens: tokens, rtlRatio: ratio, length: len };
     }
 

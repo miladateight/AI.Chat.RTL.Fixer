@@ -1,131 +1,304 @@
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Abstractions;
+using AI.ChatRTLFixer.Core.Profiles;
 using AI.ChatRTLFixer.Core.Settings;
 using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Win32;
 
 namespace AI.ChatRTLFixer.Tray;
 
-/// <summary>Settings form: global/per-app toggles, font, copy mode, startup, security note.</summary>
+/// <summary>
+/// Compact settings surface for the options people use most: turning the fix on,
+/// choosing copy/font behavior, and enabling profiles. Advanced internals stay
+/// out of the way so the tray app remains easy to understand.
+/// </summary>
 public sealed class SettingsForm : Form
 {
     private readonly Orchestrator _orchestrator;
     private readonly ISettingsStore _settingsStore;
     private readonly SafeLogger _logger;
+    private readonly Label _statusValue = new();
+    private bool _loading;
 
     public SettingsForm(Orchestrator orchestrator, ISettingsStore settingsStore, SafeLogger logger)
     {
         _orchestrator = orchestrator;
         _settingsStore = settingsStore;
         _logger = logger;
-        Text = "AI Chat RTL Fixer — Settings";
-        Width = 480; Height = 520;
+
+        Text = "AI Chat RTL Fixer";
+        Font = new Font("Segoe UI", 9F);
+        ClientSize = new Size(580, 760);
+        MinimumSize = new Size(580, 560);
         FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+        BackColor = Color.FromArgb(248, 250, 252);
         Build();
     }
 
     private void Build()
     {
-        var s = _orchestrator.Settings;
-        var y = 12;
-
-        var chkGlobal = new CheckBox { Text = "Enable AI Chat RTL Fixer (global)", Checked = s.GlobalEnabled, Top = y, Left = 16, Width = 320 };
-        chkGlobal.CheckedChanged += async (_, _) =>
+        _loading = true;
+        var settings = _orchestrator.Settings;
+        var root = new FlowLayoutPanel
         {
-            s.GlobalEnabled = chkGlobal.Checked;
-            if (!s.GlobalEnabled) await _orchestrator.DisableAllAsync();
-            await _settingsStore.SaveAsync(s, CancellationToken.None);
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Padding = new Padding(20),
+            BackColor = BackColor,
         };
-        Controls.Add(chkGlobal); y += 32;
+        Controls.Add(root);
 
-        // Per-app toggles
-        var lblApps = new Label { Text = "Detected / supported apps:", Top = y, Left = 16, Width = 320 };
-        Controls.Add(lblApps); y += 22;
-        foreach (var p in _orchestrator.Profiles)
+        root.Controls.Add(BuildHeader());
+
+        var general = MakeSection("General");
+        var global = new CheckBox
         {
-            var enabled = s.Apps.TryGetValue(p.AppId, out var st) ? st.Enabled : true;
-            var chk = new CheckBox { Text = $"{p.DisplayName} — {p.Status}", Checked = enabled, Top = y, Left = 32, Width = 380, Tag = p.AppId };
-            chk.CheckedChanged += async (_, _) =>
+            Text = "Enable RTL Fixer",
+            Checked = settings.GlobalEnabled,
+            AutoSize = true,
+            AccessibleName = "Enable RTL Fixer",
+        };
+        global.CheckedChanged += async (_, _) =>
+        {
+            if (_loading) return;
+            await _orchestrator.SetGlobalEnabledAsync(global.Checked);
+            await SaveAsync();
+            UpdateStatus();
+        };
+        general.Controls.Add(global);
+
+        var startup = new CheckBox
+        {
+            Text = "Start with Windows",
+            Checked = settings.StartWithWindows,
+            AutoSize = true,
+            Margin = new Padding(0, 10, 0, 0),
+            AccessibleName = "Start with Windows",
+        };
+        startup.CheckedChanged += async (_, _) =>
+        {
+            if (_loading) return;
+            settings.StartWithWindows = startup.Checked;
+            try { StartupManager.SetEnabled(settings.StartWithWindows, Application.ExecutablePath); }
+            catch (Exception ex)
             {
-                s.Apps[p.AppId] = new AppToggleState { Enabled = chk.Checked };
-                await _settingsStore.SaveAsync(s, CancellationToken.None);
-            };
-            Controls.Add(chk); y += 24;
+                _logger.Log(LogLevel.Warning, LogCategories.App, "startup-set-failed", ("msg", SafeLogger.Redact(ex.Message)));
+                MessageBox.Show("Windows startup could not be updated. Please try again.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            await SaveAsync();
+        };
+        general.Controls.Add(startup);
+
+        var autoRelaunch = new CheckBox
+        {
+            Text = "Automatically relaunch after I have approved it",
+            Checked = settings.AutoRelaunchAfterConsent,
+            AutoSize = true,
+            Margin = new Padding(0, 10, 0, 0),
+            AccessibleName = "Automatically relaunch after approval",
+        };
+        autoRelaunch.CheckedChanged += async (_, _) =>
+        {
+            if (_loading) return;
+            if (autoRelaunch.Checked && MessageBox.Show(
+                "This can close and reopen an enabled experimental app after you have approved this setting. Continue?",
+                "Enable auto-relaunch", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                _loading = true;
+                autoRelaunch.Checked = false;
+                _loading = false;
+                return;
+            }
+            settings.AutoRelaunchAfterConsent = autoRelaunch.Checked;
+            await SaveAsync();
+        };
+        general.Controls.Add(autoRelaunch);
+        LayoutSection(general);
+        root.Controls.Add(general);
+
+        var behavior = MakeSection("Chat behavior");
+        var behaviorGrid = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 2,
+            RowCount = 2,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0),
+        };
+        behaviorGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        behaviorGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        var fontLabel = new Label { Text = "Chat font", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 7, 8, 7) };
+        var font = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 250,
+            AccessibleName = "Chat font",
+        };
+        var availableFonts = Enum.GetValues<FontChoice>().Where(choice => choice != FontChoice.Custom).ToArray();
+        font.Items.AddRange(availableFonts.Cast<object>().ToArray());
+        font.SelectedItem = availableFonts.Contains(settings.SelectedFont) ? settings.SelectedFont : FontChoice.Vazirmatn;
+        font.SelectedIndexChanged += async (_, _) =>
+        {
+            if (_loading || font.SelectedItem is not FontChoice selected) return;
+            settings.SelectedFont = selected;
+            await _orchestrator.RefreshAttachedAsync();
+            await SaveAsync();
+        };
+
+        var copyLabel = new Label { Text = "Copy mode", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 7, 8, 7) };
+        var copy = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 250,
+            AccessibleName = "Copy mode",
+        };
+        copy.Items.AddRange(Enum.GetValues<CopyMode>().Cast<object>().ToArray());
+        copy.SelectedItem = settings.CopyMode;
+        copy.SelectedIndexChanged += async (_, _) =>
+        {
+            if (_loading || copy.SelectedItem is not CopyMode selected) return;
+            settings.CopyMode = selected;
+            await _orchestrator.RefreshAttachedAsync();
+            await SaveAsync();
+        };
+
+        behaviorGrid.Controls.Add(fontLabel, 0, 0);
+        behaviorGrid.Controls.Add(font, 1, 0);
+        behaviorGrid.Controls.Add(copyLabel, 0, 1);
+        behaviorGrid.Controls.Add(copy, 1, 1);
+        behavior.Controls.Add(behaviorGrid);
+        LayoutSection(behavior);
+        root.Controls.Add(behavior);
+
+        var profiles = MakeSection("App profiles");
+        profiles.Controls.Add(new Label
+        {
+            Text = "Only enable profiles you recognize. Experimental profiles can change when the target app updates.",
+            AutoSize = false,
+            Width = 480,
+            Height = 34,
+            ForeColor = Color.FromArgb(71, 85, 105),
+            Margin = new Padding(0, 0, 0, 8),
+        });
+        var profileList = new CheckedListBox
+        {
+            CheckOnClick = true,
+            Width = 480,
+            Height = 190,
+            IntegralHeight = false,
+            BorderStyle = BorderStyle.FixedSingle,
+            AccessibleName = "Enabled app profiles",
+        };
+        foreach (var profile in _orchestrator.Profiles.OrderBy(profile => profile.DisplayName))
+        {
+            var enabled = settings.Apps.TryGetValue(profile.AppId, out var toggle) ? toggle.Enabled : true;
+            profileList.Items.Add(new ProfileChoice(profile), enabled);
         }
-
-        y += 6;
-        var lblFont = new Label { Text = "Font:", Top = y, Left = 16, Width = 60 }; Controls.Add(lblFont);
-        var comboFont = new ComboBox { Top = y, Left = 80, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
-        comboFont.Items.AddRange(Enum.GetNames<FontChoice>());
-        comboFont.SelectedItem = s.SelectedFont.ToString();
-        comboFont.SelectedIndexChanged += async (_, _) =>
+        // Size the list to show every profile so the last apps (OpenCode, ZCode)
+        // are visible without scrolling — otherwise they look unsupported.
+        profileList.Height = Math.Clamp(profileList.Items.Count * profileList.ItemHeight + 6, 190, 360);
+        profileList.ItemCheck += (_, args) => BeginInvoke(async () =>
         {
-            s.SelectedFont = Enum.Parse<FontChoice>(comboFont.SelectedItem!.ToString()!);
-            await _settingsStore.SaveAsync(s, CancellationToken.None);
-        };
-        Controls.Add(comboFont); y += 28;
+            if (_loading || profileList.Items[args.Index] is not ProfileChoice choice) return;
+            var enabled = profileList.GetItemChecked(args.Index);
+            await _orchestrator.SetAppEnabledAsync(choice.Profile.AppId, enabled);
+            await SaveAsync();
+            UpdateStatus();
+        });
+        profiles.Controls.Add(profileList);
+        LayoutSection(profiles);
+        root.Controls.Add(profiles);
 
-        var lblCopy = new Label { Text = "Copy mode:", Top = y, Left = 16, Width = 80 }; Controls.Add(lblCopy);
-        var comboCopy = new ComboBox { Top = y, Left = 100, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
-        comboCopy.Items.AddRange(Enum.GetNames<CopyMode>());
-        comboCopy.SelectedItem = s.CopyMode.ToString();
-        comboCopy.SelectedIndexChanged += async (_, _) =>
+        var footer = new FlowLayoutPanel
         {
-            s.CopyMode = Enum.Parse<CopyMode>(comboCopy.SelectedItem!.ToString()!);
-            await _settingsStore.SaveAsync(s, CancellationToken.None);
+            AutoSize = true,
+            Width = 520,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 4, 0, 0),
         };
-        Controls.Add(comboCopy); y += 28;
+        var restore = new Button { Text = "Restore and pause", AutoSize = true, AccessibleName = "Restore current changes and pause" };
+        restore.Click += async (_, _) =>
+        {
+            await _orchestrator.SetGlobalEnabledAsync(false);
+            _loading = true;
+            global.Checked = false;
+            _loading = false;
+            await SaveAsync();
+            UpdateStatus();
+        };
+        var close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.OK, AccessibleName = "Close settings" };
+        footer.Controls.Add(restore);
+        footer.Controls.Add(close);
+        root.Controls.Add(footer);
 
-        var chkStartup = new CheckBox { Text = "Start with Windows", Checked = s.StartWithWindows, Top = y, Left = 16, Width = 200 };
-        chkStartup.CheckedChanged += async (_, _) =>
-        {
-            s.StartWithWindows = chkStartup.Checked;
-            try { StartupManager.SetEnabled(s.StartWithWindows, Application.ExecutablePath); }
-            catch (Exception ex) { _logger.Log(LogLevel.Warning, LogCategories.App, "startup-set-failed", ("msg", SafeLogger.Redact(ex.Message))); }
-            await _settingsStore.SaveAsync(s, CancellationToken.None);
-        };
-        Controls.Add(chkStartup); y += 28;
+        _loading = false;
+        UpdateStatus();
+    }
 
-        var chkAutoRelaunch = new CheckBox { Text = "Auto-relaunch after prior consent", Checked = s.AutoRelaunchAfterConsent, Top = y, Left = 16, Width = 340 };
-        chkAutoRelaunch.CheckedChanged += async (_, _) =>
+    private Control BuildHeader()
+    {
+        var header = new Panel { Width = 520, Height = 76, Margin = new Padding(0, 0, 0, 12) };
+        header.Controls.Add(new Label
         {
-            if (chkAutoRelaunch.Checked && MessageBox.Show(
-                "This may close and reopen supported apps at startup after you have explicitly enabled it. Continue?",
-                "Auto relaunch consent", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-            { chkAutoRelaunch.Checked = false; return; }
-            s.AutoRelaunchAfterConsent = chkAutoRelaunch.Checked;
-            await _settingsStore.SaveAsync(s, CancellationToken.None);
-        };
-        Controls.Add(chkAutoRelaunch); y += 28;
+            Text = "AI Chat RTL Fixer",
+            Font = new Font(Font.FontFamily, 15F, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(0, 0),
+        });
+        header.Controls.Add(new Label
+        {
+            Text = "RTL only where it belongs: chat text stays readable, code stays LTR.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(71, 85, 105),
+            Location = new Point(0, 28),
+        });
+        _statusValue.AutoSize = true;
+        _statusValue.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold);
+        _statusValue.Location = new Point(0, 53);
+        header.Controls.Add(_statusValue);
+        return header;
+    }
 
-        var chkDev = new CheckBox { Text = "Developer mode (allow short text samples in logs)", Checked = s.DeveloperMode, Top = y, Left = 16, Width = 380 };
-        chkDev.CheckedChanged += async (_, _) =>
-        {
-            if (chkDev.Checked && MessageBox.Show(
-                "Developer mode allows SHORT (truncated) text samples from the chat " +
-                "surface to appear in local logs. This is only for debugging. Enable?",
-                "Developer mode warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-            { chkDev.Checked = false; return; }
-            s.DeveloperMode = chkDev.Checked;
-            s.DeveloperDiagnosticsEnabled = chkDev.Checked;
-            await _settingsStore.SaveAsync(s, CancellationToken.None);
-        };
-        Controls.Add(chkDev); y += 32;
+    private static GroupBox MakeSection(string title) => new()
+    {
+        Text = title,
+        Width = 520,
+        AutoSize = false,
+        Padding = new Padding(14, 24, 14, 14),
+        Margin = new Padding(0, 0, 0, 12),
+    };
 
-        var secNote = new Label
+    private static void LayoutSection(GroupBox section)
+    {
+        var y = 28;
+        foreach (Control control in section.Controls)
         {
-            Text = "Security: This tool uses Chrome DevTools Protocol over local " +
-                   "loopback (127.0.0.1) only. No external network calls are made.",
-            Top = y, Left = 16, Width = 440, Height = 48,
-        };
-        Controls.Add(secNote); y += 50;
+            y += control.Margin.Top;
+            control.Location = new Point(14, y);
+            y += control.Height + 8;
+        }
+        section.Height = y + 12;
+    }
 
-        var privacyNote = new Label
-        {
-            Text = "Privacy: No telemetry. No analytics. No chat content stored or sent anywhere.",
-            Top = y, Left = 16, Width = 440, Height = 32,
-        };
-        Controls.Add(privacyNote);
+    private async Task SaveAsync() => await _settingsStore.SaveAsync(_orchestrator.Settings, CancellationToken.None);
+
+    private void UpdateStatus()
+    {
+        var attached = _orchestrator.RuntimeStatuses.Count(status => status.State == AppRuntimeState.InjectionSucceeded);
+        _statusValue.Text = _orchestrator.Settings.GlobalEnabled
+            ? attached > 0 ? $"Status: active in {attached} app{(attached == 1 ? string.Empty : "s")}" : "Status: enabled — waiting for a supported app"
+            : "Status: paused — no app is being modified";
+        _statusValue.ForeColor = _orchestrator.Settings.GlobalEnabled ? Color.FromArgb(13, 148, 136) : Color.FromArgb(100, 116, 139);
+    }
+
+    private sealed record ProfileChoice(AppProfile Profile)
+    {
+        public override string ToString() => $"{Profile.DisplayName} — {Profile.Status}";
     }
 }

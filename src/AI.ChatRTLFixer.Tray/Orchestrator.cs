@@ -149,13 +149,18 @@ public sealed class Orchestrator : IDisposable
             entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
             return result;
         }
-        if (!result.DebugArgsVerified)
-        {
-            Transition(entry, AppRuntimeState.DebugArgsIgnored, "relaunch-args-not-observed");
-            entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
-            return result;
-        }
         if (result.DebugPort is not int port) return result;
+        // DebugArgsVerified only means we could confirm the flag on the SPAWNED
+        // pid within a short window. MSIX/packaged Electron apps (Claude, ChatGPT,
+        // Codex, …) frequently re-exec or hand the window off to a different pid,
+        // so that check often reports false even though the relaunched instance
+        // DID bind the debug port. The authoritative success signal is whether CDP
+        // actually comes up on 127.0.0.1:port — so we always proceed to attach and
+        // only fall back to DebugArgsIgnored inside WaitForCdpAndAttachAsync if the
+        // endpoint never appears. Gating on DebugArgsVerified here was the root
+        // cause of "clicked relaunch but nothing happened / can't relaunch again".
+        if (!result.DebugArgsVerified)
+            _logger.Log(LogLevel.Information, LogCategories.Relaunch, "args-unverified-attaching-anyway", ("app", profile.AppId), ("port", port));
         Transition(entry, AppRuntimeState.WaitingForCdp, $"port={port}");
         await WaitForCdpAndAttachAsync(entry, profile, port, afterRelaunch: true);
         return result;
@@ -201,11 +206,90 @@ public sealed class Orchestrator : IDisposable
     {
         foreach (var entry in Entries())
         {
-            Transition(entry, AppRuntimeState.DisabledByUser, "disabled-by-user");
-            if (entry.Adapter is not null) { try { await entry.Adapter.RestoreAsync(CancellationToken.None); } catch { } }
+            await DisableEntryAsync(entry, "disabled-by-user");
         }
         _logger.Log(LogLevel.Information, LogCategories.Restore, "disabled-all");
         StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Applies the global kill switch immediately to processes already detected.</summary>
+    public async Task SetGlobalEnabledAsync(bool enabled)
+    {
+        _settings.GlobalEnabled = enabled;
+        if (!enabled)
+        {
+            await DisableAllAsync();
+            return;
+        }
+
+        await ReconcileExistingAsync();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Enables or disables one profile and restores its live page immediately when disabled.</summary>
+    public async Task SetAppEnabledAsync(string appId, bool enabled)
+    {
+        _settings.Apps[appId] = new AppToggleState { Enabled = enabled };
+        var entries = Entries().Where(entry => string.Equals(entry.App.AppId, appId, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (!enabled)
+        {
+            foreach (var entry in entries) await DisableEntryAsync(entry, "app-disabled-by-user");
+        }
+        else if (_settings.GlobalEnabled)
+        {
+            foreach (var entry in entries) await ReconcileAsync(entry.App);
+        }
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Reapplies the current font and copy preferences to already-attached pages.</summary>
+    public async Task RefreshAttachedAsync()
+    {
+        foreach (var entry in Entries())
+        {
+            await entry.Gate.WaitAsync();
+            try
+            {
+                if (entry.State != AppRuntimeState.InjectionSucceeded || entry.Adapter is null ||
+                    !_profiles.TryGet(entry.App.AppId, out var profile)) continue;
+
+                await entry.Adapter.RestoreAsync(entry.ExitToken);
+                await InjectAsync(entry.Adapter, profile, entry.ExitToken);
+                Transition(entry, AppRuntimeState.InjectionSucceeded, "preferences-updated");
+            }
+            catch (Exception ex)
+            {
+                Transition(entry, AppRuntimeState.InjectionFailed, SafeLogger.Redact(ex.Message));
+            }
+            finally
+            {
+                entry.Gate.Release();
+            }
+        }
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task DisableEntryAsync(RuntimeEntry entry, string detail)
+    {
+        await entry.Gate.WaitAsync();
+        try
+        {
+            Transition(entry, AppRuntimeState.DisabledByUser, detail);
+            if (entry.Adapter is not null) await entry.Adapter.RestoreAsync(CancellationToken.None);
+        }
+        catch
+        {
+            // Restoring is best effort; closing the target app always returns it to a clean state.
+        }
+        finally
+        {
+            entry.Gate.Release();
+        }
+    }
+
+    private async Task ReconcileExistingAsync()
+    {
+        foreach (var app in _watcher.Snapshot()) await ReconcileAsync(app);
     }
 
     private RuntimeEntry GetOrAdd(DetectedApp app)

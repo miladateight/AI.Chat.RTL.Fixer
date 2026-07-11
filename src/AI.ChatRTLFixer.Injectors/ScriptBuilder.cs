@@ -70,14 +70,47 @@ public static class ScriptBuilder
     private const string Body = @"
     // --- registry of touched nodes, keyed by node, value = original attrs ---
     var registry = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
-    function markNode(el, decision) {
+    function markNode(el, decision, marker) {
       if (!el || !el.setAttribute) return;
-      if (el.getAttribute('data-rtlfixer') === 'applied') return;
-      var prev = { dir: el.getAttribute('dir'), align: el.style && el.style.textAlign ? el.style.textAlign : null };
-      if (registry) registry.set(el, prev); else el.__rtlfixerPrev = prev;
-      el.setAttribute('data-rtlfixer', 'applied');
+      marker = marker || 'applied';
+      var previous = registry ? registry.get(el) : el.__rtlfixerPrev;
+      if (!previous) {
+        var st = el.style || {};
+        var prev = {
+          dir: el.getAttribute('dir'),
+          align: st.textAlign ? st.textAlign : null,
+          dirStyle: st.direction ? st.direction : null,
+          ub: st.unicodeBidi ? st.unicodeBidi : null
+        };
+        if (registry) registry.set(el, prev); else el.__rtlfixerPrev = prev;
+      }
+      el.setAttribute('data-rtlfixer', marker);
       el.setAttribute('dir', decision.direction);
-      if (el.style) el.style.textAlign = decision.align;
+      if (el.style) {
+        el.style.textAlign = decision.align;
+        // Inline direction + isolation makes the fix survive app stylesheets that
+        // hard-set `direction: ltr` on message nodes, and keeps embedded LTR runs
+        // (code, URLs, @handles) correctly ordered inside RTL paragraphs.
+        el.style.direction = decision.direction;
+        el.style.unicodeBidi = 'isolate';
+      }
+    }
+
+    function restoreTrackedNode(el) {
+      if (!el || !el.getAttribute || !el.getAttribute('data-rtlfixer')) return;
+      var prev = registry ? registry.get(el) : el.__rtlfixerPrev;
+      if (prev) {
+        if (prev.dir === null) el.removeAttribute('dir'); else el.setAttribute('dir', prev.dir);
+        if (el.style) {
+          el.style.textAlign = prev.align === null ? '' : prev.align;
+          el.style.direction = prev.dirStyle === null ? '' : prev.dirStyle;
+          el.style.unicodeBidi = prev.ub === null ? '' : prev.ub;
+        }
+      } else {
+        el.removeAttribute('dir');
+        if (el.style) { el.style.textAlign = ''; el.style.direction = ''; el.style.unicodeBidi = ''; }
+      }
+      el.removeAttribute('data-rtlfixer');
     }
 
     function isProtected(el) {
@@ -86,30 +119,49 @@ public static class ScriptBuilder
       if (CFG.codeBlock) list.push(CFG.codeBlock);
       if (CFG.inlineCode) list.push(CFG.inlineCode);
       for (var i = 0; i < list.length; i++) {
-        try { if (el.matches(list[i])) return true; } catch (e) {}
+        try {
+          if (el.matches(list[i]) || (el.closest && el.closest(list[i]))) return true;
+        } catch (e) {}
       }
       return false;
     }
 
     function processBlock(el) {
       if (!el || !el.getAttribute) return;
-      if (el.getAttribute('data-rtlfixer') === 'applied') return;
+      // For generic DIV/TD nodes only handle true text leaves (no element
+      // children) so we never flip a layout container. P/LI/headings may hold
+      // inline children (strong/code/a) and are always safe to classify.
+      var tag = el.tagName;
+      if ((tag === 'DIV' || tag === 'TD') && el.children && el.children.length > 0) return;
       var text = el.textContent || '';
       if (!text.trim()) return;
       var insideProtected = isProtected(el);
       var d = Rules.classifyNode(text, insideProtected);
-      if (d.protected) return;
+      if (d.protected) { restoreTrackedNode(el); return; }
+      // Only touch nodes that actually need RTL. Leaving LTR nodes untouched keeps
+      // our footprint minimal and avoids re-aligning centered/right UI text now
+      // that the scan also covers generic leaf divs.
+      if (d.direction !== 'rtl') { restoreTrackedNode(el); return; }
       markNode(el, d);
     }
 
+    function isCandidate(el, selector) {
+      if (!el || !el.matches) return false;
+      try { return el.matches(selector); } catch (e) { return false; }
+    }
+
     function scanSubtree(root) {
+      if (!root) return;
+      if (root.nodeType !== 1) root = root.parentElement;
       if (!root || !root.querySelectorAll) return;
       var sel = [];
       if (CFG.userMessage) sel.push(CFG.userMessage);
       if (CFG.assistantMessage) sel.push(CFG.assistantMessage);
-      sel.push('p','li','h1','h2','h3','h4','blockquote');
+      sel.push('p','li','h1','h2','h3','h4','h5','blockquote','td','dd','div');
       try {
-        var nodes = root.querySelectorAll(sel.join(', '));
+        var selector = sel.join(', ');
+        if (isCandidate(root, selector)) processBlock(root);
+        var nodes = root.querySelectorAll(selector);
         for (var i = 0; i < nodes.length; i++) processBlock(nodes[i]);
       } catch (e) {}
       var composer = document.querySelector(CFG.composer);
@@ -120,10 +172,7 @@ public static class ScriptBuilder
       if (!el) return;
       var text = el.value || el.textContent || '';
       var d = Rules.classify(text);
-      if (d.protected) return;
-      el.setAttribute('data-rtlfixer', 'applied-composer');
-      el.setAttribute('dir', d.direction);
-      if (el.style) el.style.textAlign = d.align;
+      markNode(el, d, 'applied-composer');
     }
 
     // --- MutationObserver (debounced) ---
@@ -135,7 +184,8 @@ public static class ScriptBuilder
       for (var i = 0; i < batch.length; i++) scanSubtree(batch[i]);
     }
     function schedule(node) {
-      pending.push(node);
+      var target = node && node.nodeType === 1 ? node : (node && node.parentElement) || document.body;
+      if (pending.indexOf(target) < 0) pending.push(target);
       if (timer) return;
       timer = setTimeout(flush, 80);
     }
@@ -212,16 +262,7 @@ public static class ScriptBuilder
       } catch (e) {}
       var all = document.querySelectorAll('[data-rtlfixer]');
       for (var i = 0; i < all.length; i++) {
-        var el = all[i];
-        var prev = registry ? registry.get(el) : el.__rtlfixerPrev;
-        if (prev) {
-          if (prev.dir === null) el.removeAttribute('dir'); else if (prev.dir) el.setAttribute('dir', prev.dir);
-          if (el.style && prev.align === null) el.style.textAlign = ''; else if (el.style && prev.align) el.style.textAlign = prev.align;
-        } else {
-          el.removeAttribute('dir');
-          if (el.style) el.style.textAlign = '';
-        }
-        el.removeAttribute('data-rtlfixer');
+        restoreTrackedNode(all[i]);
       }
       window['__rtlfixerInstalled'] = false;
     };

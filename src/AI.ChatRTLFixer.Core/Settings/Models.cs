@@ -41,8 +41,8 @@ public sealed class AppSettings
     /// <summary>Once a user has consented, supported profiles may be relaunched at startup.</summary>
     public bool AutoRelaunchAfterConsent { get; set; }
 
-    public int RelaunchCooldownSeconds { get; set; } = 60;
-    public int DiscoveryTimeoutSeconds { get; set; } = 12;
+    public int RelaunchCooldownSeconds { get; set; } = 30;
+    public int DiscoveryTimeoutSeconds { get; set; } = 20;
     public int InitialScanDelayMs { get; set; } = 0;
     public int ReconciliationIntervalSeconds { get; set; } = 3;
     public bool ShowUnsupportedApps { get; set; } = true;

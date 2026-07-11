@@ -119,8 +119,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private async void ToggleGlobal()
     {
-        _orchestrator.Settings.GlobalEnabled = !_orchestrator.Settings.GlobalEnabled;
-        if (!_orchestrator.Settings.GlobalEnabled) await _orchestrator.DisableAllAsync();
+        await _orchestrator.SetGlobalEnabledAsync(!_orchestrator.Settings.GlobalEnabled);
         await _settingsStore.SaveAsync(_orchestrator.Settings, CancellationToken.None);
         RebuildMenu();
     }
@@ -210,7 +209,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void ShowAbout()
     {
         MessageBox.Show(
-            $"{Constants.ProductName} v0.1.0\n\n" +
+            $"{Constants.ProductName} v{Constants.AppVersion}\n\n" +
             "A free and open-source Windows tray tool that improves RTL text " +
             "rendering inside AI desktop chat applications. It focuses only on " +
             "the chat area and keeps code, commands, paths and English text " +
@@ -222,11 +221,19 @@ public sealed class TrayApplicationContext : ApplicationContext
             MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    private void ExitApp()
+    private async void ExitApp()
     {
         _notify.Visible = false;
-        _ = _orchestrator.DisableAllAsync().ContinueWith(_ => { }, TaskScheduler.Default);
-        ExitThread();
+        try
+        {
+            // Wait for the restore commands instead of exiting while they are
+            // still in flight. This makes "Exit" keep its runtime-only promise.
+            await _orchestrator.DisableAllAsync();
+        }
+        finally
+        {
+            ExitThread();
+        }
     }
 
     protected override void Dispose(bool disposing)

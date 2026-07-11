@@ -41,7 +41,13 @@ public static class CssBuilder
 
         if (protectedSelectors.Count > 0)
         {
-            var joined = string.Join(", ", protectedSelectors);
+            // Protected elements must stay inside the chat surface as well. A
+            // bare `code` selector could otherwise alter a sidebar, settings
+            // page, or embedded editor in the target application.
+            var scope = string.IsNullOrWhiteSpace(selectors.ChatContainer)
+                ? string.Empty
+                : $":is({selectors.ChatContainer}) ";
+            var joined = string.Join(", ", protectedSelectors.Select(selector => scope + selector));
             sb.AppendLine($"{joined} {{");
             sb.AppendLine("  direction: ltr !important;");
             sb.AppendLine("  text-align: left !important;");

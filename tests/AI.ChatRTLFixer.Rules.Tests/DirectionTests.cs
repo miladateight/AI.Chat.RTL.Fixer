@@ -30,6 +30,13 @@ public class DirectionTests
         new object[] { "persian-with-inline-code", "برای اجرا از `dotnet build` استفاده کن.", BlockDirection.Rtl, false },
         new object[] { "persian-with-command", "برای نصب اجرا کن: npm install", BlockDirection.Rtl, false },
 
+        // Persian-first heading whose Latin product name pulls the RTL ratio just
+        // under the threshold -> still RTL via first-strong (dir=auto behavior).
+        new object[] { "persian-first-latin-heavy", "گزارش نهایی — PdfSanitizer 0.4.0 (Hardening & UX polish)", BlockDirection.Rtl, false },
+        // Latin/path-dominant line (RTL ratio well under threshold) with a short
+        // trailing Persian note -> LTR via first-strong + low ratio.
+        new object[] { "latin-first-path", "src/pdfsanitizer/app/widgets/ocr_panel.py — OCR mismatch را درست کرد", BlockDirection.Ltr, false },
+
         // Markdown Persian -> RTL (content-driven).
         new object[] { "md-heading", "# عنوان فارسی\nاین یک بخش فارسی است.", BlockDirection.Rtl, false },
         new object[] { "md-bullet", "- مورد اول فارسی\n- مورد دوم فارسی\n- مورد سوم", BlockDirection.Rtl, false },

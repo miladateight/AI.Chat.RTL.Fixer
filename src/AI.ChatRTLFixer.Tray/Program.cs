@@ -14,7 +14,7 @@ internal static class Program
         AppPaths.EnsureDirectories();
         var logger = new SafeLogger(AppPaths.LogPath, LogLevel.Information, developerMode: false);
 
-        logger.Log(LogLevel.Information, LogCategories.App, "launching", ("version", "0.1.0"));
+        logger.Log(LogLevel.Information, LogCategories.App, "launching", ("version", Constants.AppVersion));
 
         var settingsStore = new SettingsStore(logger);
         var settings = settingsStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();

@@ -97,6 +97,7 @@ public sealed class ProcessWatcher : IProcessWatcher
                 catch { continue; }
 
                 if (IsElectronChild(snapshot.CommandLine)) continue;
+                if (IsNonGuiBackend(snapshot.ExecutablePath, snapshot.CommandLine)) continue;
                 candidates++;
                 if (!_profiles.TryMatchProcess(snapshot.Name, snapshot.ExecutablePath, snapshot.ProductName,
                     snapshot.FileDescription, snapshot.WindowTitles, snapshot.CommandLine, out var profile, out var reason))
@@ -165,6 +166,25 @@ public sealed class ProcessWatcher : IProcessWatcher
 
     private static bool IsElectronChild(string? commandLine) =>
         commandLine?.Contains("--type=", StringComparison.OrdinalIgnoreCase) == true;
+
+    // CLI/agent backends share a process name and even an executable name with a
+    // desktop GUI, but have no chat window to inject into. They must never be
+    // treated as a target: besides showing a permanently-broken "Requires
+    // Relaunch" entry, a relaunch would terminate a headless agent session
+    // (e.g. an active claude-code run) instead of a chat window. Identified by
+    // headless CLI signatures on the command line, or by living under a known
+    // CLI install directory rather than the packaged desktop-app location.
+    private static bool IsNonGuiBackend(string? executablePath, string? commandLine)
+    {
+        var cl = commandLine ?? string.Empty;
+        var px = executablePath ?? string.Empty;
+        if (cl.Contains("app-server", StringComparison.OrdinalIgnoreCase)) return true;      // codex agent backend
+        if (cl.Contains("stream-json", StringComparison.OrdinalIgnoreCase)) return true;     // claude-code headless I/O
+        if (cl.Contains("--stdio", StringComparison.OrdinalIgnoreCase)) return true;         // MCP/stdio agents
+        if (px.Contains("\\claude-code\\", StringComparison.OrdinalIgnoreCase)) return true; // claude-code CLI dir
+        if (px.Contains("\\.codex\\", StringComparison.OrdinalIgnoreCase)) return true;      // codex CLI dir
+        return false;
+    }
 
     private static bool LooksLikeAiCandidate(ProcessSnapshot snapshot) =>
         (snapshot.Name + " " + snapshot.ProductName + " " + snapshot.FileDescription).Contains("claude", StringComparison.OrdinalIgnoreCase) ||

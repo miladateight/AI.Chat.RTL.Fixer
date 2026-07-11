@@ -81,12 +81,37 @@ public sealed class CdpDiscoveryClient : IDisposable
         if (pages.Count == 0) return CdpDiscoveryResult.Failed(CdpDiscoveryFailure.NoPageTarget, "no-page-target", version);
         if (!string.IsNullOrEmpty(titlePattern))
         {
-            pages = pages.Where(t => t.Title != null && t.Title.Contains(titlePattern, StringComparison.OrdinalIgnoreCase)).ToList();
-            if (pages.Count == 0) return CdpDiscoveryResult.Failed(CdpDiscoveryFailure.TargetNotMatchingProfile, "target-not-matching-profile", version);
+            // Desktop Electron builds frequently report a window/page title that
+            // differs from the profile hint (e.g. the OpenAI desktop app's page
+            // title is "Codex", not "ChatGPT"). Treat the title as a preference:
+            // use the titled targets when any match, otherwise fall back to every
+            // page target rather than failing outright. These apps are single-
+            // window, so the remaining page target is the chat surface.
+            var titled = pages.Where(t => t.Title != null && t.Title.Contains(titlePattern, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (titled.Count > 0) pages = titled;
         }
-        if (pages.All(p => string.IsNullOrWhiteSpace(p.WebSocketDebuggerUrl)))
+        // Push auxiliary/secondary windows (hotkey overlays, popups, tray/quick-
+        // entry surfaces, devtools) to the back so the adapter's first pick is the
+        // real chat window. Order is otherwise preserved (stable sort).
+        pages = pages
+            .Where(p => !string.IsNullOrWhiteSpace(p.WebSocketDebuggerUrl))
+            .OrderBy(p => IsAuxiliaryWindow(p.Url) ? 1 : 0)
+            .ToList();
+        if (pages.Count == 0)
             return CdpDiscoveryResult.Failed(CdpDiscoveryFailure.WebSocketUrlMissing, "websocket-url-missing", version);
         return CdpDiscoveryResult.Ok(pages, version);
+    }
+
+    private static readonly string[] _auxiliaryUrlMarkers =
+        ["hotkey", "popup", "overlay", "quick-entry", "quickentry", "tray", "notification", "devtools", "about:blank"];
+
+    /// <summary>True if the target URL looks like a secondary/utility window rather than the main chat surface.</summary>
+    private static bool IsAuxiliaryWindow(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return false;
+        foreach (var marker in _auxiliaryUrlMarkers)
+            if (url.Contains(marker, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 
     public void Dispose() => _http.Dispose();

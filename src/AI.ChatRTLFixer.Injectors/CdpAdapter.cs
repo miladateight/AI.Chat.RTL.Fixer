@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -18,6 +19,8 @@ public sealed class CdpAdapter : ITargetAdapter
 {
     private readonly SafeLogger _logger;
     private readonly CdpDiscoveryClient _discovery;
+    private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonElement>> _pendingCommands = new();
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
     private ClientWebSocket? _ws;
     private int _msgId;
     private CancellationTokenSource? _listenCts;
@@ -80,6 +83,8 @@ public sealed class CdpAdapter : ITargetAdapter
 
         try
         {
+            _listenCts?.Cancel();
+            await DisposeSocketAsync();
             _ws = new ClientWebSocket();
             await _ws.ConnectAsync(new Uri(target.WebSocketDebuggerUrl), ct);
         }
@@ -129,36 +134,47 @@ public sealed class CdpAdapter : ITargetAdapter
 
     private void StartListening()
     {
-        _listenCts = new CancellationTokenSource();
+        var socket = _ws ?? throw new InvalidOperationException("CDP websocket is not connected.");
+        _listenCts?.Cancel();
+        _listenCts?.Dispose();
+        var listenCts = new CancellationTokenSource();
+        _listenCts = listenCts;
         _ = Task.Run(async () =>
         {
             try
             {
                 var buffer = new byte[8192];
-                while (_ws is { State: WebSocketState.Open } && !_listenCts.IsCancellationRequested)
+                while (socket.State == WebSocketState.Open && !listenCts.IsCancellationRequested)
                 {
                     var sb = new StringBuilder();
                     WebSocketReceiveResult res;
                     do
                     {
-                        res = await _ws.ReceiveAsync(buffer, _listenCts.Token);
+                        res = await socket.ReceiveAsync(buffer, listenCts.Token);
+                        if (res.MessageType == WebSocketMessageType.Close) break;
                         sb.Append(Encoding.UTF8.GetString(buffer, 0, res.Count));
                     } while (!res.EndOfMessage);
-                    // We do not need to parse responses for injection; discard.
+                    if (res.MessageType == WebSocketMessageType.Close) break;
+                    DispatchResponse(sb.ToString());
                 }
             }
             catch
             {
                 // Detached.
             }
-            Detached?.Invoke(this, EventArgs.Empty);
-        }, _listenCts.Token);
+            finally
+            {
+                if (ReferenceEquals(socket, _ws))
+                    FailPendingCommands(new InvalidOperationException("CDP connection closed before a command completed."));
+            }
+            if (ReferenceEquals(socket, _ws)) Detached?.Invoke(this, EventArgs.Empty);
+        }, listenCts.Token);
     }
 
     private async Task InjectStyleAsync(string id, string css, CancellationToken ct)
     {
         var escaped = JsonEscape(css);
-        var js = $"(function(){{var e=document.getElementById('{id}');if(e)return;e=document.createElement('style');e.id='{id}';e.textContent={EscapedText(escaped)};document.head.appendChild(e);}})();";
+        var js = $"(function(){{var e=document.getElementById('{id}');if(!e){{e=document.createElement('style');e.id='{id}';document.head.appendChild(e);}}e.textContent={EscapedText(escaped)};}})();";
         await EvaluateAsync(js, ct);
     }
 
@@ -170,8 +186,14 @@ public sealed class CdpAdapter : ITargetAdapter
 
     private async Task EvaluateAsync(string expression, CancellationToken ct)
     {
-        if (_ws is null || _ws.State != WebSocketState.Open) return;
+        if (_ws is null || _ws.State != WebSocketState.Open)
+            throw new InvalidOperationException("CDP websocket is not connected.");
+
         var id = Interlocked.Increment(ref _msgId);
+        var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_pendingCommands.TryAdd(id, completion))
+            throw new InvalidOperationException("Unable to register CDP command.");
+
         var msg = JsonSerializer.Serialize(new
         {
             id = id,
@@ -179,7 +201,64 @@ public sealed class CdpAdapter : ITargetAdapter
             @params = new { expression = expression, returnByValue = false },
         });
         var bytes = Encoding.UTF8.GetBytes(msg);
-        await _ws.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct);
+        try
+        {
+            var enteredSendGate = false;
+            try
+            {
+                await _sendGate.WaitAsync(ct);
+                enteredSendGate = true;
+                await _ws.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct);
+            }
+            finally
+            {
+                if (enteredSendGate) _sendGate.Release();
+            }
+
+            using var registration = ct.Register(() => completion.TrySetCanceled(ct));
+            var response = await completion.Task;
+            ThrowIfCommandFailed(response);
+        }
+        finally
+        {
+            _pendingCommands.TryRemove(id, out _);
+        }
+    }
+
+    private void DispatchResponse(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return;
+        try
+        {
+            using var document = JsonDocument.Parse(message);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("id", out var idProperty) || !idProperty.TryGetInt32(out var id)) return;
+            if (_pendingCommands.TryRemove(id, out var completion))
+                completion.TrySetResult(root.Clone());
+        }
+        catch (JsonException)
+        {
+            // CDP events that are not JSON commands cannot make injection appear successful.
+        }
+    }
+
+    private static void ThrowIfCommandFailed(JsonElement response)
+    {
+        if (response.TryGetProperty("error", out var error))
+            throw new InvalidOperationException("CDP command failed: " + error.GetRawText());
+
+        if (response.TryGetProperty("result", out var result) &&
+            result.TryGetProperty("exceptionDetails", out var exception))
+            throw new InvalidOperationException("Injected JavaScript failed: " + exception.GetRawText());
+    }
+
+    private void FailPendingCommands(Exception error)
+    {
+        foreach (var pair in _pendingCommands)
+        {
+            if (_pendingCommands.TryRemove(pair.Key, out var completion))
+                completion.TrySetException(error);
+        }
     }
 
     private static string EscapedText(string escaped) => "\"" + escaped + "\"";
@@ -229,17 +308,23 @@ public sealed class CdpAdapter : ITargetAdapter
     {
         _disposed = true;
         _listenCts?.Cancel();
-        if (_ws is not null)
-        {
-            try
-            {
-                if (_ws.State == WebSocketState.Open)
-                    await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "exit", CancellationToken.None);
-            }
-            catch { }
-            _ws.Dispose();
-        }
+        FailPendingCommands(new ObjectDisposedException(nameof(CdpAdapter)));
+        await DisposeSocketAsync();
         _discovery.Dispose();
         _listenCts?.Dispose();
+        _sendGate.Dispose();
+    }
+
+    private async Task DisposeSocketAsync()
+    {
+        if (_ws is null) return;
+        try
+        {
+            if (_ws.State == WebSocketState.Open)
+                await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "exit", CancellationToken.None);
+        }
+        catch { }
+        _ws.Dispose();
+        _ws = null;
     }
 }
