@@ -35,19 +35,6 @@ public enum SupportStatus
     Unsupported,
 }
 
-/// <summary>How the CDP debug endpoint should be obtained for an Electron app.</summary>
-public enum CdpAttachMode
-{
-    /// <summary>Attach to an already-running app that already has the debug port open.</summary>
-    Attach,
-
-    /// <summary>Relaunch the app (with user consent) with the debug port args appended.</summary>
-    Relaunch,
-
-    /// <summary>Show the user the exact command to run manually; do not close the app.</summary>
-    ManualReopen,
-}
-
 /// <summary>Per-block direction decision produced by the rule engine.</summary>
 public enum BlockDirection
 {
@@ -104,16 +91,11 @@ public enum AppRuntimeState
     Unknown,
     Detected,
     RunningNoDebugPort,
-    RelaunchRequired,
-    RelaunchPromptShown,
-    Relaunching,
-    WaitingForCdp,
     CdpDiscovered,
     Attached,
     InjectionSucceeded,
     InjectionFailed,
     CdpUnsupported,
-    DebugArgsIgnored,
     Exited,
     DisabledByUser,
     Unsupported,

@@ -20,8 +20,23 @@ public sealed class PlaywrightFixture : IDisposable
     public static async Task<PlaywrightFixture> CreateAsync()
     {
         var pw = await Playwright.CreateAsync();
-        var browser = await pw.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
-        return new PlaywrightFixture(pw, browser);
+        try
+        {
+            var browser = await pw.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+            return new PlaywrightFixture(pw, browser);
+        }
+        catch (PlaywrightException)
+        {
+            // A browser download may be unavailable in restricted regions.
+            // Fall back to the installed stable Chrome channel while keeping
+            // the test isolated and headless.
+            var browser = await pw.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true,
+                Channel = "chrome",
+            });
+            return new PlaywrightFixture(pw, browser);
+        }
     }
 
     public Task<IPage> NewPageAsync() => Browser.NewPageAsync();

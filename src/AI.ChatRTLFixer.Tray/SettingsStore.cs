@@ -14,6 +14,7 @@ namespace AI.ChatRTLFixer.Tray;
 public sealed class SettingsStore : ISettingsStore
 {
     private readonly SafeLogger _logger;
+    private readonly SemaphoreSlim _saveGate = new(1, 1);
     private static readonly JsonSerializerOptions _opts = new()
     {
         WriteIndented = true,
@@ -43,6 +44,7 @@ public sealed class SettingsStore : ISettingsStore
 
     public async Task SaveAsync(AppSettings settings, CancellationToken ct)
     {
+        await _saveGate.WaitAsync(ct);
         AppPaths.EnsureDirectories();
         var path = AppPaths.SettingsPath;
         var tmp = path + ".tmp";
@@ -57,6 +59,11 @@ public sealed class SettingsStore : ISettingsStore
         {
             _logger.Log(LogLevel.Error, LogCategories.Settings, "save-failed", ("msg", SafeLogger.Redact(ex.Message)));
         }
+        finally
+        {
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+            _saveGate.Release();
+        }
     }
 
     private static AppSettings Migrate(AppSettings s)
@@ -65,10 +72,9 @@ public sealed class SettingsStore : ISettingsStore
         {
             s.SchemaVersion = AppSettings.CurrentSchemaVersion;
         }
-        s.RelaunchCooldownSeconds = Math.Clamp(s.RelaunchCooldownSeconds, 10, 3600);
         s.DiscoveryTimeoutSeconds = Math.Clamp(s.DiscoveryTimeoutSeconds, 2, 60);
         s.InitialScanDelayMs = Math.Clamp(s.InitialScanDelayMs, 0, 10000);
-        s.ReconciliationIntervalSeconds = Math.Clamp(s.ReconciliationIntervalSeconds, 2, 5);
+        s.ReconciliationIntervalSeconds = Math.Clamp(s.ReconciliationIntervalSeconds, 5, 60);
         return s;
     }
 }

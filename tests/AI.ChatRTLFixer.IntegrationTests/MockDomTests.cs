@@ -118,6 +118,52 @@ public class MockDomTests
     }
 
     [Fact]
+    public async Task Script_ReclassifiesStreamingTextNodeChanges()
+    {
+        using var pw = await PlaywrightFixture.CreateAsync();
+        var page = await pw.NewPageAsync();
+        await page.SetContentAsync(MockHtml);
+        await page.EvaluateAsync("document.querySelector('#messages').insertAdjacentHTML('beforeend', '<p id=stream>Loading</p>')");
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions { Content = BuildScript() });
+
+        await page.EvaluateAsync("document.querySelector('#stream').firstChild.data = 'این پاسخ در حال پخش است'");
+        await page.WaitForTimeoutAsync(300);
+
+        Assert.Equal("rtl", await page.Locator("#stream").GetAttributeAsync("dir"));
+    }
+
+    [Fact]
+    public async Task Script_TracksReplacedComposerWithoutTouchingOutsideUi()
+    {
+        using var pw = await PlaywrightFixture.CreateAsync();
+        var page = await pw.NewPageAsync();
+        await page.SetContentAsync(MockHtml);
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions { Content = BuildScript() });
+
+        await page.EvaluateAsync("document.querySelector('#composer').outerHTML = '<input id=composer>'");
+        await page.WaitForTimeoutAsync(200);
+        await page.EvaluateAsync("var c=document.querySelector('#composer');c.value='متن فارسی';c.dispatchEvent(new Event('input'))");
+        await page.WaitForTimeoutAsync(100);
+
+        Assert.Equal("rtl", await page.Locator("#composer").GetAttributeAsync("dir"));
+        Assert.Null(await page.Locator("#sidebar").GetAttributeAsync("data-rtlfixer"));
+    }
+
+    [Fact]
+    public async Task Script_SurvivesChatRootReplacement()
+    {
+        using var pw = await PlaywrightFixture.CreateAsync();
+        var page = await pw.NewPageAsync();
+        await page.SetContentAsync(MockHtml);
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions { Content = BuildScript() });
+
+        await page.EvaluateAsync("document.querySelector('#chat').outerHTML = '<div id=chat><div id=messages><p id=replaced>ریشه جدید گفتگو</p></div><input id=composer></div>'");
+        await page.WaitForTimeoutAsync(300);
+
+        Assert.Equal("rtl", await page.Locator("#replaced").GetAttributeAsync("dir"));
+    }
+
+    [Fact]
     public async Task Restore_RemovesAllModifications()
     {
         using var pw = await PlaywrightFixture.CreateAsync();

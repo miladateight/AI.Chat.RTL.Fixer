@@ -3,6 +3,7 @@ using System.Management;
 using System.Text;
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Abstractions;
+using AI.ChatRTLFixer.Core.Profiles;
 using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Profiles;
 
@@ -20,9 +21,9 @@ public sealed class ProcessWatcher : IProcessWatcher
     private readonly Dictionary<int, DetectedApp> _byPid = new();
     private readonly object _gate = new();
     private Timer? _timer;
-    private int _portMin = 49152;
-    private int _portMax = 65535;
-    private int _intervalMs = 3000;
+    private ManagementEventWatcher? _startWatcher;
+    private ManagementEventWatcher? _stopWatcher;
+    private int _intervalMs = 15000;
     private int _initialDelayMs;
     private bool _developerDiagnostics;
     private int _polling;
@@ -37,16 +38,9 @@ public sealed class ProcessWatcher : IProcessWatcher
     public event EventHandler<DetectedApp>? AppChanged;
     public event EventHandler<DetectedApp>? AppExited;
 
-    public void SetPortRange(int min, int max)
-    {
-        _portMin = Math.Clamp(min, 1, 65535);
-        _portMax = Math.Clamp(max, 1, 65535);
-        if (_portMin > _portMax) (_portMin, _portMax) = (_portMax, _portMin);
-    }
-
     public void Configure(int reconciliationIntervalSeconds, bool developerDiagnostics, int initialScanDelayMs = 0)
     {
-        _intervalMs = Math.Clamp(reconciliationIntervalSeconds, 2, 5) * 1000;
+        _intervalMs = Math.Clamp(reconciliationIntervalSeconds, 5, 60) * 1000;
         _developerDiagnostics = developerDiagnostics;
         _initialDelayMs = Math.Clamp(initialScanDelayMs, 0, 10000);
     }
@@ -60,6 +54,7 @@ public sealed class ProcessWatcher : IProcessWatcher
     {
         Stop();
         _initialScanComplete = false;
+        StartProcessEvents();
         _timer = new Timer(_ => PollSafe(), null, _initialDelayMs, _intervalMs);
     }
 
@@ -67,6 +62,45 @@ public sealed class ProcessWatcher : IProcessWatcher
     {
         _timer?.Dispose();
         _timer = null;
+        StopProcessEvents();
+    }
+
+    private void StartProcessEvents()
+    {
+        try
+        {
+            _startWatcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_ProcessStartTrace"));
+            _stopWatcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_ProcessStopTrace"));
+            _startWatcher.EventArrived += OnProcessEvent;
+            _stopWatcher.EventArrived += OnProcessEvent;
+            _startWatcher.Start();
+            _stopWatcher.Start();
+        }
+        catch (Exception ex)
+        {
+            _logger.Log(LogLevel.Debug, LogCategories.ProcessWatcher, "process-events-unavailable", ("msg", SafeLogger.Redact(ex.Message)));
+            StopProcessEvents();
+        }
+    }
+
+    private void StopProcessEvents()
+    {
+        foreach (var watcher in new[] { _startWatcher, _stopWatcher })
+        {
+            if (watcher is null) continue;
+            try { watcher.EventArrived -= OnProcessEvent; watcher.Stop(); } catch { }
+            watcher.Dispose();
+        }
+        _startWatcher = null;
+        _stopWatcher = null;
+    }
+
+    private void OnProcessEvent(object sender, EventArrivedEventArgs args)
+    {
+        // A short debounce lets a new GUI process publish its window and command
+        // line before the scan. The periodic timer remains a low-frequency
+        // fallback on systems where WMI process events are unavailable.
+        try { _timer?.Change(150, _intervalMs); } catch (ObjectDisposedException) { }
     }
 
     private void PollSafe()
@@ -93,19 +127,46 @@ public sealed class ProcessWatcher : IProcessWatcher
             using (process)
             {
                 ProcessSnapshot snapshot;
-                try { snapshot = ReadSnapshot(process); }
+                AppProfile profile;
+                string reason;
+                try
+                {
+                    var name = process.ProcessName;
+                    var title = TryGetWindowTitle(process);
+                    if (!_profiles.TryMatchProcess(name, out profile))
+                    {
+                        // Only GUI processes need the more expensive path and
+                        // version-info fallback. Most processes are rejected by
+                        // name without touching WMI or their executable image.
+                        if (string.IsNullOrWhiteSpace(title)) continue;
+                        var path = TryGetPath(process);
+                        var version = TryGetVersionInfo(path);
+                        if (!_profiles.TryMatchProcess(name, path, version.ProductName,
+                            version.FileDescription, [title], null, out profile, out reason))
+                        {
+                            if (_developerDiagnostics)
+                            {
+                                var ignored = new ProcessSnapshot(process.Id, name, path, null, null,
+                                    version.ProductName, version.FileDescription, [title]);
+                                if (LooksLikeAiCandidate(ignored))
+                                    _logger.Log(LogLevel.Debug, LogCategories.ProcessWatcher, "ignored-candidate", ("pid", ignored.ProcessId), ("name", ignored.Name), ("reason", "no-profile-match"));
+                            }
+                            continue;
+                        }
+                        snapshot = ReadMatchedSnapshot(process, name, path, version, title);
+                    }
+                    else
+                    {
+                        reason = "process-name";
+                        var path = TryGetPath(process);
+                        snapshot = ReadMatchedSnapshot(process, name, path, TryGetVersionInfo(path), title);
+                    }
+                }
                 catch { continue; }
 
                 if (IsElectronChild(snapshot.CommandLine)) continue;
                 if (IsNonGuiBackend(snapshot.ExecutablePath, snapshot.CommandLine)) continue;
                 candidates++;
-                if (!_profiles.TryMatchProcess(snapshot.Name, snapshot.ExecutablePath, snapshot.ProductName,
-                    snapshot.FileDescription, snapshot.WindowTitles, snapshot.CommandLine, out var profile, out var reason))
-                {
-                    if (_developerDiagnostics && LooksLikeAiCandidate(snapshot))
-                        _logger.Log(LogLevel.Debug, LogCategories.ProcessWatcher, "ignored-candidate", ("pid", snapshot.ProcessId), ("name", snapshot.Name), ("reason", "no-profile-match"));
-                    continue;
-                }
 
                 matched++;
                 seenPids.Add(snapshot.ProcessId);
@@ -119,8 +180,6 @@ public sealed class ProcessWatcher : IProcessWatcher
                     CommandLine = snapshot.CommandLine,
                     HasDebugPort = port is not null,
                     DebugPort = port,
-                    PortMin = _portMin,
-                    PortMax = _portMax,
                     ProductName = snapshot.ProductName,
                     FileDescription = snapshot.FileDescription,
                     WindowTitles = snapshot.WindowTitles,
@@ -169,9 +228,8 @@ public sealed class ProcessWatcher : IProcessWatcher
 
     // CLI/agent backends share a process name and even an executable name with a
     // desktop GUI, but have no chat window to inject into. They must never be
-    // treated as a target: besides showing a permanently-broken "Requires
-    // Relaunch" entry, a relaunch would terminate a headless agent session
-    // (e.g. an active claude-code run) instead of a chat window. Identified by
+    // treated as a target: that would create a permanently unavailable entry
+    // for a headless session instead of a chat window. Identified by
     // headless CLI signatures on the command line, or by living under a known
     // CLI install directory rather than the packaged desktop-app location.
     private static bool IsNonGuiBackend(string? executablePath, string? commandLine)
@@ -191,13 +249,12 @@ public sealed class ProcessWatcher : IProcessWatcher
         (snapshot.Name + " " + snapshot.ProductName + " " + snapshot.FileDescription).Contains("codex", StringComparison.OrdinalIgnoreCase) ||
         (snapshot.Name + " " + snapshot.ProductName + " " + snapshot.FileDescription).Contains("zcode", StringComparison.OrdinalIgnoreCase);
 
-    private static ProcessSnapshot ReadSnapshot(Process process)
+    private static ProcessSnapshot ReadMatchedSnapshot(
+        Process process, string name, string? path,
+        (string? ProductName, string? FileDescription) version, string? title)
     {
-        var path = TryGetPath(process);
-        var version = TryGetVersionInfo(path);
         var wmi = TryGetWmi(process.Id);
-        var title = TryGetWindowTitle(process);
-        return new ProcessSnapshot(process.Id, process.ProcessName, path, wmi.CommandLine, wmi.ParentProcessId,
+        return new ProcessSnapshot(process.Id, name, path, wmi.CommandLine, wmi.ParentProcessId,
             version.ProductName, version.FileDescription, string.IsNullOrWhiteSpace(title) ? [] : [title]);
     }
 

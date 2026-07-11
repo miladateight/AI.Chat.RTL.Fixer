@@ -4,8 +4,7 @@
 
 AI Chat RTL Fixer communicates with supported Electron apps using the **Chrome DevTools Protocol (CDP)** over **local loopback (127.0.0.1) only**.
 
-- A **random free TCP port** is chosen per session from a high range. No fixed port is used.
-- The debug endpoint is bound to `127.0.0.1` explicitly (`--remote-debugging-address=127.0.0.1`).
+- The tool never opens a debug port or changes another process. It only considers a port explicitly advertised in a matched process command line.
 - The adapter **verifies** the discovered WebSocket URL is loopback before connecting. If the endpoint is not bound to `127.0.0.1` / `localhost`, attachment is refused and the profile is not marked Stable.
 - No external network calls are made. A loopback-only HTTP proxy guard is used in the discovery client as defence in depth.
 
@@ -13,9 +12,9 @@ AI Chat RTL Fixer communicates with supported Electron apps using the **Chrome D
 
 No telemetry, analytics, cloud, account access or API keys. The tool does not send clipboard data or chat content anywhere. All processing is local.
 
-## Relaunch and consent
+## No process lifecycle control
 
-The tool never closes or restarts a target app without explicit user consent. Before relaunch, a warning prompts the user to review unsaved work, in-flight messages or sensitive sessions. If a safe relaunch is not possible, the tool advises manual reopen and marks the profile Experimental/Unsupported.
+The tool never closes, kills, launches or restarts a target application. A process without an existing local endpoint is reported as waiting and remains untouched.
 
 ## Runtime-only
 
@@ -23,4 +22,4 @@ No binary patching. No permanent modification of target app files. All changes a
 
 ## Risks
 
-Running any application with a remote debugging port means any local process could potentially access that page's content while the port is open. AI Chat RTL Fixer mitigates this with a random port and loopback binding. Users should only relaunch apps through this tool and restart them normally when finished.
+Running any application with a remote debugging port means another local process could potentially access that page's content while the port is open. AI Chat RTL Fixer refuses non-loopback HTTP and WebSocket addresses, but users remain responsible for how the target application endpoint was enabled.

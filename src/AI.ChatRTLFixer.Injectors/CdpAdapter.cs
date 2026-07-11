@@ -24,6 +24,7 @@ public sealed class CdpAdapter : ITargetAdapter
     private ClientWebSocket? _ws;
     private int _msgId;
     private CancellationTokenSource? _listenCts;
+    private string? _newDocumentScriptId;
     private bool _disposed;
 
     public bool IsAttached => _ws is { State: WebSocketState.Open };
@@ -41,7 +42,7 @@ public sealed class CdpAdapter : ITargetAdapter
         if (profile.Cdp is null)
             return Task.FromResult(AttachResult.Failed(AttachFailure.Unknown, "profile has no CDP strategy"));
 
-        // The orchestrator resolves the port (already-open or relaunched) and
+        // The orchestrator resolves the already-open port and
         // calls AttachToPortAsync. This generic AttachAsync signals that a port
         // is required.
         return Task.FromResult(AttachResult.Failed(AttachFailure.NoDebugPort, "AttachAsync requires the orchestrator to supply the port"));
@@ -68,7 +69,7 @@ public sealed class CdpAdapter : ITargetAdapter
             _logger.Log(LogLevel.Information, LogCategories.Cdp, "version-ok", ("port", port), ("browser", version.Browser ?? "unknown"), ("protocol", version.ProtocolVersion ?? "unknown"));
 
         if (targets.Count == 0)
-            return AttachResult.Failed(AttachFailure.NoMatchingTarget, "no matching page target", false);
+            return AttachResult.Failed(AttachFailure.NoMatchingTarget, "no matching page target");
 
         var target = targets[0];
         if (string.IsNullOrEmpty(target.WebSocketDebuggerUrl))
@@ -87,6 +88,7 @@ public sealed class CdpAdapter : ITargetAdapter
             await DisposeSocketAsync();
             _ws = new ClientWebSocket();
             await _ws.ConnectAsync(new Uri(target.WebSocketDebuggerUrl), ct);
+            _newDocumentScriptId = null;
         }
         catch (Exception ex)
         {
@@ -104,15 +106,24 @@ public sealed class CdpAdapter : ITargetAdapter
     {
         if (!IsAttached) throw new InvalidOperationException("not attached");
 
-        // Font style (complete @font-face + scoped font-family) via one style element.
-        if (!string.IsNullOrEmpty(payload.FontCss))
+        // Install one idempotent bootstrap for both the current document and
+        // every future navigation in this target. This keeps the fix active
+        // across refreshes without polling or restarting the host application.
+        if (_newDocumentScriptId is not null)
         {
-            await InjectStyleAsync(Constants.FontStyleId, payload.FontCss, ct);
+            await SendCommandAsync("Page.removeScriptToEvaluateOnNewDocument",
+                new { identifier = _newDocumentScriptId }, ct);
+            _newDocumentScriptId = null;
         }
-        await InjectStyleAsync(Constants.CssStyleId, payload.Css, ct);
-
-        // Runtime script via Runtime.evaluate.
-        await EvaluateAsync(payload.Script, ct);
+        var bootstrap = BuildStyleScript(Constants.FontStyleId, payload.FontCss) +
+                        BuildStyleScript(Constants.CssStyleId, payload.Css) +
+                        payload.Script;
+        var registration = await SendCommandAsync("Page.addScriptToEvaluateOnNewDocument",
+            new { source = bootstrap }, ct);
+        if (registration.TryGetProperty("result", out var result) &&
+            result.TryGetProperty("identifier", out var identifier))
+            _newDocumentScriptId = identifier.GetString();
+        await EvaluateAsync(bootstrap, ct);
         _logger.Log(LogLevel.Information, LogCategories.Injector, "injected");
     }
 
@@ -121,6 +132,12 @@ public sealed class CdpAdapter : ITargetAdapter
         if (!IsAttached) return;
         try
         {
+            if (_newDocumentScriptId is not null)
+            {
+                await SendCommandAsync("Page.removeScriptToEvaluateOnNewDocument",
+                    new { identifier = _newDocumentScriptId }, ct);
+                _newDocumentScriptId = null;
+            }
             await EvaluateAsync("window.__rtlfixerRestore && window.__rtlfixerRestore();", ct);
             await RemoveStyleAsync(Constants.CssStyleId, ct);
             await RemoveStyleAsync(Constants.FontStyleId, ct);
@@ -167,15 +184,9 @@ public sealed class CdpAdapter : ITargetAdapter
                 if (ReferenceEquals(socket, _ws))
                     FailPendingCommands(new InvalidOperationException("CDP connection closed before a command completed."));
             }
-            if (ReferenceEquals(socket, _ws)) Detached?.Invoke(this, EventArgs.Empty);
+            if (!listenCts.IsCancellationRequested && ReferenceEquals(socket, _ws))
+                Detached?.Invoke(this, EventArgs.Empty);
         }, listenCts.Token);
-    }
-
-    private async Task InjectStyleAsync(string id, string css, CancellationToken ct)
-    {
-        var escaped = JsonEscape(css);
-        var js = $"(function(){{var e=document.getElementById('{id}');if(!e){{e=document.createElement('style');e.id='{id}';document.head.appendChild(e);}}e.textContent={EscapedText(escaped)};}})();";
-        await EvaluateAsync(js, ct);
     }
 
     private async Task RemoveStyleAsync(string id, CancellationToken ct)
@@ -185,6 +196,12 @@ public sealed class CdpAdapter : ITargetAdapter
     }
 
     private async Task EvaluateAsync(string expression, CancellationToken ct)
+    {
+        _ = await SendCommandAsync("Runtime.evaluate",
+            new { expression = expression, returnByValue = false }, ct);
+    }
+
+    private async Task<JsonElement> SendCommandAsync(string method, object parameters, CancellationToken ct)
     {
         if (_ws is null || _ws.State != WebSocketState.Open)
             throw new InvalidOperationException("CDP websocket is not connected.");
@@ -197,8 +214,8 @@ public sealed class CdpAdapter : ITargetAdapter
         var msg = JsonSerializer.Serialize(new
         {
             id = id,
-            method = "Runtime.evaluate",
-            @params = new { expression = expression, returnByValue = false },
+            method = method,
+            @params = parameters,
         });
         var bytes = Encoding.UTF8.GetBytes(msg);
         try
@@ -218,6 +235,7 @@ public sealed class CdpAdapter : ITargetAdapter
             using var registration = ct.Register(() => completion.TrySetCanceled(ct));
             var response = await completion.Task;
             ThrowIfCommandFailed(response);
+            return response;
         }
         finally
         {
@@ -261,9 +279,13 @@ public sealed class CdpAdapter : ITargetAdapter
         }
     }
 
-    private static string EscapedText(string escaped) => "\"" + escaped + "\"";
-
-    private static string JsonEscape(string s) => JsonSerializer.Serialize(s).Trim('"');
+    private static string BuildStyleScript(string id, string? css)
+    {
+        if (string.IsNullOrEmpty(css)) return string.Empty;
+        return $"(function(){{var e=document.getElementById({JsonSerializer.Serialize(id)});" +
+               $"if(!e){{e=document.createElement('style');e.id={JsonSerializer.Serialize(id)};document.head.appendChild(e);}}" +
+               $"e.textContent={JsonSerializer.Serialize(css)};}})();";
+    }
 
     private static bool IsLoopbackWsUrl(string url)
     {

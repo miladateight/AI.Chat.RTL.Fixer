@@ -1,9 +1,17 @@
 # Roadmap
 
-## v0.1 (current)
+## v0.3 (current)
+
+- Event-driven process detection with a low-frequency reconciliation fallback.
+- Attach-only local CDP integration; no target-app close, launch or restart path.
+- Injection that survives page navigation, chat-root replacement and composer replacement.
+- Streaming character-data updates and bounded DOM work queues.
+- 69 automated tests across core, rules and real headless-browser integration.
+
+## v0.1
 
 - Core: shared rule engine (canonical JS, tested via Jint), direction logic, technical-text protection, clipboard modes, font handling, restore, privacy-safe logging, profile system, tray app.
-- Electron CDP adapter (loopback-only, random port, verified bind, user-consented relaunch, no infinite retry).
+- Initial Electron CDP adapter and loopback verification.
 - At least one Stable profile after real verification; others Planned/Unsupported (no false support claims).
 - Copy behavior (Original / RTL-readable / RTL-readable without markers).
 - Vazirmatn bundled font (OFL) applied to chat surface only.
@@ -20,7 +28,7 @@
 - Selector improvements for updated app versions.
 - Better copy modes and streaming support.
 
-## v0.3
+## Future
 
 - WebView2 adapter — **only after real verification** against a WebView2 app.
 - Tauri/Qt support if feasible and tested.

@@ -19,7 +19,9 @@ public static class DetectionReportExporter
                 processName = status.App.ProcessName,
                 pid = status.App.ProcessId,
                 executablePath = includePaths ? status.App.ExecutablePath : null,
-                windowTitles = status.App.WindowTitles,
+                // Window titles can contain conversation names. Export only a
+                // count so a diagnostics file never captures private titles.
+                windowTitleCount = status.App.WindowTitles.Length,
                 commandLine = RedactCommandLine(status.App.CommandLine),
                 matchedProfile = status.App.AppId,
                 matchReason = status.App.MatchReason,
@@ -48,9 +50,7 @@ public static class DetectionReportExporter
 
     private static string NextAction(AppRuntimeState state) => state switch
     {
-        AppRuntimeState.RelaunchRequired or AppRuntimeState.RelaunchPromptShown => "relaunch-with-user-consent",
-        AppRuntimeState.CdpUnsupported => "inspect-cdp-or-wait-for-cooldown",
-        AppRuntimeState.DebugArgsIgnored => "manual-reopen-or-profile-update",
+        AppRuntimeState.CdpUnsupported => "inspect-existing-local-endpoint",
         AppRuntimeState.Unsupported => "no-runtime-injection",
         AppRuntimeState.DisabledByUser => "enable-global-or-app-setting",
         _ => "none",

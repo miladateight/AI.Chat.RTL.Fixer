@@ -13,7 +13,7 @@ src/
   AI.ChatRTLFixer.Fonts       — bundled Vazirmatn + @font-face builder
   AI.ChatRTLFixer.Clipboard   — copy-mode payload builders
   AI.ChatRTLFixer.Injectors   — CDP client, CSS/script builders, adapter
-  AI.ChatRTLFixer.Win32       — process watcher, port picker, relaunch, startup
+  AI.ChatRTLFixer.Win32       — event-driven process watcher and startup integration
   AI.ChatRTLFixer.Tray        — WinForms tray app, orchestrator
 tests/
   AI.ChatRTLFixer.Rules.Tests       — unit tests via Jint (canonical JS)

@@ -20,7 +20,7 @@ public class DirectionTests
         new object[] { "english-only", "Hello world, this is an English message.", BlockDirection.Ltr, false },
 
         // Mixed Persian + English (RTL present) -> RTL.
-        new object[] { "mixed-fa-en", "از Claude برای کدنویسی استفاده کن use it wisely.", BlockDirection.Rtl, false },
+        new object[] { "mixed-fa-en", "از این ابزار برای کدنویسی استفاده کن use it wisely.", BlockDirection.Rtl, false },
         new object[] { "persian-with-numbers", "نسخه 3 از فایل در پوشه ۲ وجود دارد.", BlockDirection.Rtl, false },
 
         // Persian with embedded technical tokens -> still RTL block (tokens detected, not whole-block technical).

@@ -13,7 +13,7 @@
   "protectedTypes": [
     "codeBlock", "inlineCode", "command", "winPath", "linuxPath", "url",
     "json", "yaml", "xml", "toml", "ini", "env", "log", "stackTrace",
-    "diff", "branchName", "packageName", "versionNumber", "modelName",
+    "diff", "branchName", "packageName", "versionNumber",
     "badge", "label"
   ]
 }

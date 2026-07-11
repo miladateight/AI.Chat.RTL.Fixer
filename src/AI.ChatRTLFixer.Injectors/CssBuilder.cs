@@ -20,12 +20,6 @@ public static class CssBuilder
         var sb = new StringBuilder();
         sb.AppendLine("/* AI Chat RTL Fixer — chat surface only. Scoped CSS. */");
 
-        // Default the chat container to LTR; the script overrides per-block.
-        if (!string.IsNullOrEmpty(selectors.ChatContainer))
-        {
-            sb.AppendLine($"{selectors.ChatContainer} {{ direction: ltr; }}");
-        }
-
         // Composer: set to LTR by default; the script flips to RTL while the
         // user types RTL text.
         if (!string.IsNullOrEmpty(selectors.Composer))

@@ -7,7 +7,6 @@ public static class LogCategories
     public const string Settings = "settings";
     public const string ProcessWatcher = "procwatch";
     public const string Profile = "profile";
-    public const string Relaunch = "relaunch";
     public const string Cdp = "cdp";
     public const string Injector = "injector";
     public const string Font = "font";

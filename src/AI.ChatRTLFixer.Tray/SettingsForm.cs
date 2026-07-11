@@ -93,30 +93,6 @@ public sealed class SettingsForm : Form
         };
         general.Controls.Add(startup);
 
-        var autoRelaunch = new CheckBox
-        {
-            Text = "Automatically relaunch after I have approved it",
-            Checked = settings.AutoRelaunchAfterConsent,
-            AutoSize = true,
-            Margin = new Padding(0, 10, 0, 0),
-            AccessibleName = "Automatically relaunch after approval",
-        };
-        autoRelaunch.CheckedChanged += async (_, _) =>
-        {
-            if (_loading) return;
-            if (autoRelaunch.Checked && MessageBox.Show(
-                "This can close and reopen an enabled experimental app after you have approved this setting. Continue?",
-                "Enable auto-relaunch", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-            {
-                _loading = true;
-                autoRelaunch.Checked = false;
-                _loading = false;
-                return;
-            }
-            settings.AutoRelaunchAfterConsent = autoRelaunch.Checked;
-            await SaveAsync();
-        };
-        general.Controls.Add(autoRelaunch);
         LayoutSection(general);
         root.Controls.Add(general);
 

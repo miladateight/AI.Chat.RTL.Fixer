@@ -164,8 +164,7 @@ public static class ScriptBuilder
         var nodes = root.querySelectorAll(selector);
         for (var i = 0; i < nodes.length; i++) processBlock(nodes[i]);
       } catch (e) {}
-      var composer = document.querySelector(CFG.composer);
-      if (composer) fixComposer(composer);
+      installComposer();
     }
 
     function fixComposer(el) {
@@ -185,23 +184,34 @@ public static class ScriptBuilder
     }
     function schedule(node) {
       var target = node && node.nodeType === 1 ? node : (node && node.parentElement) || document.body;
-      if (pending.indexOf(target) < 0) pending.push(target);
+      var chatRoot = document.querySelector(CFG.chatContainer);
+      if (!chatRoot || !(target === chatRoot || chatRoot.contains(target) || target.contains(chatRoot))) return;
+      // Collapse nested work and cap bursts from streaming/render-heavy UIs.
+      for (var i = pending.length - 1; i >= 0; i--) {
+        if (pending[i] === target || pending[i].contains(target)) return;
+        if (target.contains(pending[i])) pending.splice(i, 1);
+      }
+      pending.push(target);
+      if (pending.length > 50) pending = [chatRoot];
       if (timer) return;
       timer = setTimeout(flush, 80);
     }
 
     function startObserver() {
-      var root = document.querySelector(CFG.chatContainer) || document.body;
-      if (!root || typeof MutationObserver === 'undefined') return;
+      var root = document.querySelector(CFG.chatContainer);
+      if (!document.body || typeof MutationObserver === 'undefined') return;
       var obs = new MutationObserver(function (muts) {
         for (var i = 0; i < muts.length; i++) {
           var added = muts[i].addedNodes;
           for (var j = 0; j < added.length; j++) schedule(added[j]);
+          if (muts[i].type === 'characterData') schedule(muts[i].target);
         }
       });
-      obs.observe(root, { childList: true, subtree: true });
+      // Observe body so replacing the entire chat root does not orphan the
+      // fixer. schedule() strictly rejects changes outside the chat surface.
+      obs.observe(document.body, { childList: true, characterData: true, subtree: true });
       window.__rtlfixerObserver = obs;
-      scanSubtree(root);
+      if (root) scanSubtree(root);
     }
 
     // --- copy interceptor (scoped to CopyRoot) ---
@@ -226,15 +236,18 @@ public static class ScriptBuilder
     }
 
     function installCopy() {
-      var root = document.querySelector(CFG.copyRoot);
-      if (root) root.addEventListener('copy', onCopy, true);
+      document.addEventListener('copy', onCopy, true);
       window.__rtlfixerOnCopy = onCopy;
-      window.__rtlfixerCopyRoot = root;
     }
 
     function installComposer() {
       var composer = document.querySelector(CFG.composer);
       if (!composer) return;
+      if (window.__rtlfixerComposer === composer) return;
+      if (window.__rtlfixerComposer && window.__rtlfixerOnComposerInput) {
+        window.__rtlfixerComposer.removeEventListener('input', window.__rtlfixerOnComposerInput);
+        window.__rtlfixerComposer.removeEventListener('keyup', window.__rtlfixerOnComposerInput);
+      }
       window.__rtlfixerComposer = composer;
       function onInput() { fixComposer(composer); }
       composer.addEventListener('input', onInput);
@@ -251,8 +264,8 @@ public static class ScriptBuilder
     window.__rtlfixerRestore = function () {
       try { if (window.__rtlfixerObserver) window.__rtlfixerObserver.disconnect(); } catch (e) {}
       try {
-        if (window.__rtlfixerCopyRoot && window.__rtlfixerOnCopy)
-          window.__rtlfixerCopyRoot.removeEventListener('copy', window.__rtlfixerOnCopy, true);
+        if (window.__rtlfixerOnCopy)
+          document.removeEventListener('copy', window.__rtlfixerOnCopy, true);
       } catch (e) {}
       try {
         if (window.__rtlfixerComposer && window.__rtlfixerOnComposerInput) {

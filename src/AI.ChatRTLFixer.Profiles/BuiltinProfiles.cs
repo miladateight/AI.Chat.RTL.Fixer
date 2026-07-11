@@ -45,7 +45,6 @@ public static class BuiltinProfiles
         WindowTitlePatterns = ["Claude"],
         UiTechnology = UiTechnology.Electron,
         Status = SupportStatus.Experimental,
-        RequiresRelaunch = true,
         Cdp = new CdpStrategy { TargetTitlePattern = "Claude" },
         Selectors = new Selectors
         {
@@ -79,7 +78,6 @@ public static class BuiltinProfiles
         WindowTitlePatterns = ["ChatGPT"],
         UiTechnology = UiTechnology.Electron,
         Status = SupportStatus.Experimental,
-        RequiresRelaunch = true,
         Cdp = new CdpStrategy { TargetTitlePattern = "ChatGPT" },
         Selectors = new Selectors
         {
@@ -197,7 +195,6 @@ public static class BuiltinProfiles
             KnownInstallLocations = installLocations ?? [],
             UiTechnology = UiTechnology.Electron,
             Status = SupportStatus.Experimental,
-            RequiresRelaunch = true,
             Cdp = new CdpStrategy { TargetTitlePattern = titlePattern },
             Selectors = GenericSelectors(),
             KnownLimitations = limitations.ToArray(),

@@ -11,7 +11,7 @@ public sealed class AppSettings
     /// <summary>Schema version for forward migrations.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     /// <summary>Global kill switch. When false, no app is touched.</summary>
     public bool GlobalEnabled { get; set; } = true;
@@ -38,16 +38,10 @@ public sealed class AppSettings
     /// <summary>Developer diagnostics include paths and ignored candidates in exported reports.</summary>
     public bool DeveloperDiagnosticsEnabled { get; set; }
 
-    /// <summary>Once a user has consented, supported profiles may be relaunched at startup.</summary>
-    public bool AutoRelaunchAfterConsent { get; set; }
-
-    public int RelaunchCooldownSeconds { get; set; } = 30;
     public int DiscoveryTimeoutSeconds { get; set; } = 20;
     public int InitialScanDelayMs { get; set; } = 0;
-    public int ReconciliationIntervalSeconds { get; set; } = 3;
+    public int ReconciliationIntervalSeconds { get; set; } = 15;
     public bool ShowUnsupportedApps { get; set; } = true;
-
-    public PortRange PortRange { get; set; } = new();
 
     /// <summary>Last known installed version per app id (informational only).</summary>
     public Dictionary<string, string> LastKnownAppVersions { get; set; } = new();
@@ -64,8 +58,3 @@ public sealed class AppToggleState
 }
 
 /// <summary>Inclusive port range for the random free CDP port picker.</summary>
-public sealed class PortRange
-{
-    public int Min { get; set; } = 49152;
-    public int Max { get; set; } = 65535;
-}

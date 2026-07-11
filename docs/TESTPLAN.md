@@ -1,4 +1,4 @@
-# Test Plan — AI Chat RTL Fixer v0.1
+# Test Plan — AI Chat RTL Fixer v0.3
 
 ## Unit tests
 
@@ -47,22 +47,20 @@
 ### Core
 
 - [x] SafeLogger.Redact removes all content, keeps metadata
-- [x] PortPicker returns a free port in range
-- [x] PortPicker rejects invalid ranges
 - [x] ProfileRegistry matches known process
 - [x] ProfileRegistry does not match unknown process
 - [x] No builtin profile is Stable without a verified TestedAppVersion
 - [x] Profile matching by executable path when the process name differs
 - [x] Profile matching by product name / file-description signal
-- [x] Runtime-control defaults keep auto-relaunch opt-in and retries bounded
+- [x] Runtime-control defaults keep reconciliation bounded and low frequency
 
 ### Runtime orchestration manual checks
 
 - [ ] Startup snapshot finds apps already open before the tray app starts.
 - [ ] An unchanged reconciliation snapshot emits no duplicate state transition.
 - [ ] Global disabled still displays detected apps as disabled and does not attach.
-- [ ] A no-CDP app shows **Requires Relaunch** once, without log spam.
-- [ ] A failed relaunch enters cooldown; it does not close the app again automatically.
+- [ ] A no-CDP app shows **waiting for local endpoint** once, without log spam.
+- [ ] The tool never closes, launches or restarts a target app.
 - [ ] CDP diagnostics distinguish port closed, timeout, invalid JSON, no page target,
   missing websocket URL and target/profile mismatch.
 - [ ] Export Detection Report contains no chat content and only includes executable paths
@@ -76,16 +74,19 @@ These run the REAL script built by ScriptBuilder (which embeds the canonical rtl
 - [x] Script leaves code blocks LTR
 - [x] Script does not touch the sidebar
 - [x] Script processes new messages via MutationObserver (simulated streaming)
+- [x] Script reclassifies character-data updates during streaming
+- [x] Script tracks a replaced composer
+- [x] Script survives replacement of the complete chat root
 - [x] Restore removes all data-rtlfixer attributes
 - [x] Copy interceptor overrides clipboard (RtlReadable adds RLM)
 
-## Manual verification checklist (v0.1)
+## Manual verification checklist (v0.3)
 
 To be run against a real installed app once a profile is marked Stable:
 
 - [ ] Process detection finds the target app.
-- [ ] Tray shows the app with correct status and "requires relaunch".
-- [ ] Relaunch with RTL Fix works with user consent; original args preserved.
+- [ ] Tray shows the app with the correct attachment/waiting status.
+- [ ] No target process is closed, launched or restarted by the tool.
 - [ ] CDP connect succeeds on 127.0.0.1; bind verified loopback.
 - [ ] Style + font + script injected.
 - [ ] Loaded chat history is processed on attach.
@@ -106,21 +107,21 @@ To be run against a real installed app once a profile is marked Stable:
 - [ ] No external network calls (verify via netstat: only 127.0.0.1).
 - [ ] Restarting the target app normally returns it to a clean state.
 
-## Installer & packaging (v0.1)
+## Installer & packaging (v0.3)
 
 Automated in this environment (via `scripts\build-all.ps1`):
 
 - [x] `dotnet build AI.ChatRTLFixer.sln` succeeds (0 warnings, 0 errors).
-- [x] `dotnet test AI.ChatRTLFixer.sln` — 66/66 pass (Core 10, Rules 40, Integration 16 incl. Playwright).
+- [x] `dotnet test AI.ChatRTLFixer.sln` — 69/69 pass (Core 8, Rules 42, Integration 19 incl. Playwright).
 - [x] `scripts\publish.ps1` produces both portable outputs under `dist\`.
-- [x] `scripts\package-installer.ps1` compiles `dist\installer\AIChatRTLFixerSetup-0.2.0.exe` (Inno Setup, "Verification successful") + `.sha256`.
-- [x] Published exe file properties: ProductVersion `0.2.0`, FileVersion `0.2.0.0`, Company `Milad AT8`, Product `AI Chat RTL Fixer`.
+- [ ] `scripts\package-installer.ps1` compiles `dist\installer\AIChatRTLFixerSetup-0.3.0.exe` (Inno Setup) + `.sha256`.
+- [ ] Published exe file properties: ProductVersion `0.3.0`, FileVersion `0.3.0.0`, Company `Milad AT8`, Product `AI Chat RTL Fixer`.
 - [x] Self-contained exe launches, stays responsive, creates `%AppData%\AIChatRTLFixer\{settings.json, logs\rtlfixer.log}`.
 
 Manual, on a real machine (needs admin for Program Files; not run in the build
 environment because the session was non-elevated):
 
-- [ ] Run `AIChatRTLFixerSetup-0.2.0.exe`; UAC prompt appears (Program Files install).
+- [ ] Run `AIChatRTLFixerSetup-0.3.0.exe`; UAC prompt appears (Program Files install).
 - [ ] Installs to `C:\Program Files\AI Chat RTL Fixer`; exe/shortcut show the app icon.
 - [ ] Start Menu shortcut **AI Chat RTL Fixer** launches the tray app.
 - [ ] Desktop shortcut is created only when its (unchecked) task is selected.

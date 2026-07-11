@@ -2,7 +2,6 @@ using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Profiles;
 using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Profiles;
-using AI.ChatRTLFixer.Win32;
 
 namespace AI.ChatRTLFixer.Core.Tests;
 
@@ -25,23 +24,6 @@ public class CoreUnitTests
     }
 
     [Fact]
-    public void PortPicker_ReturnsFreePort_InRange()
-    {
-        var picker = new PortPicker();
-        var port = picker.PickFreePort(49152, 65535);
-        Assert.NotNull(port);
-        Assert.InRange(port!.Value, 49152, 65535);
-    }
-
-    [Fact]
-    public void PortPicker_InvalidRange_ReturnsNull()
-    {
-        var picker = new PortPicker();
-        Assert.Null(picker.PickFreePort(70000, 80000));
-        Assert.Null(picker.PickFreePort(100, 50));
-    }
-
-    [Fact]
     public void ProfileRegistry_MatchesKnownProcess()
     {
         var reg = new ProfileRegistry();
@@ -61,7 +43,9 @@ public class CoreUnitTests
     {
         var profile = new AppProfile
         {
-            AppId = "path-profile", DisplayName = "Path Profile", ProcessNames = ["ExpectedName"],
+            AppId = "path-profile",
+            DisplayName = "Path Profile",
+            ProcessNames = ["ExpectedName"],
             ExecutablePathPatterns = ["Claude\\Claude.exe"],
         };
         var registry = new ProfileRegistry([profile]);
@@ -76,7 +60,10 @@ public class CoreUnitTests
     {
         var profile = new AppProfile
         {
-            AppId = "codex", DisplayName = "Codex", ProcessNames = ["ExpectedName"], ProductNamePatterns = ["OpenAI Codex"],
+            AppId = "codex",
+            DisplayName = "Codex",
+            ProcessNames = ["ExpectedName"],
+            ProductNamePatterns = ["OpenAI Codex"],
         };
         var registry = new ProfileRegistry([profile]);
 
@@ -89,10 +76,9 @@ public class CoreUnitTests
     public void Settings_Defaults_EnableBoundedRuntimeControls()
     {
         var settings = new AI.ChatRTLFixer.Core.Settings.AppSettings();
-        Assert.False(settings.AutoRelaunchAfterConsent);
-        Assert.InRange(settings.ReconciliationIntervalSeconds, 2, 5);
+        Assert.Equal(15, settings.ReconciliationIntervalSeconds);
+        Assert.InRange(settings.ReconciliationIntervalSeconds, 5, 60);
         Assert.True(settings.DiscoveryTimeoutSeconds >= 2);
-        Assert.True(settings.RelaunchCooldownSeconds >= 10);
     }
 
     [Fact]

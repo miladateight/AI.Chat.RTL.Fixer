@@ -8,7 +8,7 @@ It is designed for Persian, Arabic, Hebrew, Urdu and other RTL-language users wh
 
 ## How it works (v0.1)
 
-For Electron-based apps, AI Chat RTL Fixer uses the **Chrome DevTools Protocol (CDP)** over **local loopback (127.0.0.1) only**. When a supported app is detected running without a debug port, the tray offers a one-click, user-consented **"Relaunch with RTL Fix"** that restarts the app with a random free debug port bound to `127.0.0.1`. The tool then injects scoped CSS, a bundled Vazirmatn font and a runtime script that classifies each chat block and applies the correct direction.
+For Electron-based apps, AI Chat RTL Fixer attaches only to a CDP endpoint already exposed on **local loopback (127.0.0.1)** by a matched process. It never closes, starts or restarts target apps. The injected bootstrap is scoped to the chat surface and persists across page navigation.
 
 Everything is **runtime-only**: closing AI Chat RTL Fixer (or disabling it) removes all modifications. Restarting the target app normally always returns it to a clean state.
 
@@ -38,12 +38,12 @@ Everything is **runtime-only**: closing AI Chat RTL Fixer (or disabling it) remo
 
 This tool uses Chrome DevTools Protocol to inject CSS/font/script into the chat surface of Electron apps. Security model:
 
-- A **random free port** is chosen per session (no fixed port).
+- No port is opened by the tool; only an endpoint already advertised by the matched process is considered.
 - The debug endpoint is bound to **`127.0.0.1` only** (`--remote-debugging-address=127.0.0.1`).
 - The adapter **verifies** the WebSocket URL is loopback before connecting.
 - **No external network calls. Only local loopback communication with debug-enabled target apps.**
 
-Running any app with a remote debugging port carries a risk: any local process could potentially access the page content. AI Chat RTL Fixer mitigates this by using a random port and loopback-only binding, and by recommending that you only relaunch the app through this tool and restart it normally when you are done.
+Running any app with a remote debugging port carries a risk: another local process could potentially access the page content. AI Chat RTL Fixer limits its own connection to verified loopback-only HTTP and WebSocket addresses and never controls the target process lifecycle.
 
 ## Privacy
 
@@ -70,7 +70,7 @@ Running any app with a remote debugging port carries a risk: any local process c
 
 - Only Electron apps via CDP are supported; WebView2/Tauri/Qt/WPF adapters are Planned and not implemented until tested.
 - No profile is Stable yet — selectors must be collected from real installed app versions before any app is marked Stable.
-- Relaunch requires user consent; the tool never closes an app automatically.
+- The tool never closes, launches or restarts a target app.
 - Electron single-instance lock may reject a second instance launched with debug args; in that case the profile is reported as Experimental/Unsupported and manual reopen is advised.
 
 ## How to report a broken app profile after an app update

@@ -36,8 +36,6 @@ public sealed class AttachResult
     /// <summary>Human-readable detail for the tray/log (no chat text).</summary>
     public string? Detail { get; init; }
 
-    /// <summary>Whether the app needs a relaunch with RTL Fix to enable CDP.</summary>
-    public bool RequiresRelaunch { get; init; }
 
     /// <summary>Verified bind address of the debug endpoint. Always 127.0.0.1 on success.</summary>
     public string? VerifiedBindAddress { get; init; }
@@ -48,12 +46,11 @@ public sealed class AttachResult
         VerifiedBindAddress = verifiedBindAddress,
     };
 
-    public static AttachResult Failed(AttachFailure failure, string detail, bool requiresRelaunch = false) => new()
+    public static AttachResult Failed(AttachFailure failure, string detail) => new()
     {
         Success = false,
         Failure = failure,
         Detail = detail,
-        RequiresRelaunch = requiresRelaunch,
     };
 }
 

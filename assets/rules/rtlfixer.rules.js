@@ -102,8 +102,7 @@
     log: /(^|\n)\s*(\d{4}-\d{2}-\d{2}|\[\d{2}:\d{2}:\d{2}\]|INFO|WARN|ERROR|DEBUG|TRACE)\b/i,
     branchName: /\b(git\s+(checkout|branch|switch)\s+|origin\/|feature\/|fix\/|release\/|hotfix\/)[A-Za-z0-9._\-\/]+/i,
     packageName: /\b(@[a-z0-9_.\-]+\/[a-z0-9_.\-]+|[a-z0-9_.\-]+@[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.]+)?)\b/i,
-    versionNumber: /\bv?\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?\b/,
-    modelName: /\b(gpt-[0-9.]+|claude-[a-z0-9.-]+|gemini-[a-z0-9.]+|llama-[a-z0-9.]+|mistral-[a-z0-9.]+|codex-[a-z0-9.]+)\b/i
+    versionNumber: /\bv?\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?\b/
   };
 
   function detectTokens(text) {
@@ -126,7 +125,6 @@
     if (RE.branchName.test(text)) tokens.push("branchName");
     if (RE.packageName.test(text)) tokens.push("packageName");
     if (RE.versionNumber.test(text)) tokens.push("versionNumber");
-    if (RE.modelName.test(text)) tokens.push("modelName");
     // reset lastIndex on global regexes
     RE.winPath.lastIndex = 0; RE.linuxPath.lastIndex = 0; RE.url.lastIndex = 0;
     return tokens;

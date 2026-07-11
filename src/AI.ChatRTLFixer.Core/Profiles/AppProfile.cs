@@ -37,9 +37,6 @@ public sealed class AppProfile
 
     public SupportStatus Status { get; set; } = SupportStatus.Planned;
 
-    /// <summary>True if enabling the fix requires relaunching the app with debug args.</summary>
-    public bool RequiresRelaunch { get; set; } = true;
-
     /// <summary>CDP strategy for Electron apps. Null for non-Electron.</summary>
     public CdpStrategy? Cdp { get; set; }
 
@@ -98,33 +95,8 @@ public sealed class CdpStrategy
     /// <summary>Always 127.0.0.1. Stored so profiles are explicit.</summary>
     public string BindAddress { get; set; } = Constants.LoopbackAddress;
 
-    /// <summary>How to pick a port. v0.1 always uses random-free.</summary>
-    public CdpPortMode PortMode { get; set; } = CdpPortMode.RandomFree;
-
-    /// <summary>Args appended when relaunching. ${port} is substituted at runtime.</summary>
-    public string[] LaunchArgs { get; set; } =
-    [
-        "--remote-debugging-port=${port}",
-        "--remote-debugging-address=127.0.0.1",
-    ];
-
-    /// <summary>Preferred attach mode.</summary>
-    public CdpAttachMode AttachMode { get; set; } = CdpAttachMode.Relaunch;
-
-    /// <summary>How long to wait for the debug endpoint to come up after relaunch.</summary>
-    public int AttachTimeoutMs { get; set; } = 8000;
-
-    /// <summary>Discovery URL template; ${port} is substituted.</summary>
-    public string DiscoverUrl { get; set; } = "http://127.0.0.1:${port}/json";
-
     /// <summary>Optional page URL/title pattern to identify the chat page among targets.</summary>
     public string TargetTitlePattern { get; set; } = string.Empty;
-}
-
-public enum CdpPortMode
-{
-    /// <summary>Pick a random free port in the configured range on 127.0.0.1.</summary>
-    RandomFree,
 }
 
 /// <summary>How to clean up when disabled / on exit.</summary>

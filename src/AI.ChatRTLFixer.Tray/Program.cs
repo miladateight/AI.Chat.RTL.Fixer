@@ -11,8 +11,11 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        using var instanceMutex = new Mutex(initiallyOwned: true, "Local\\AIChatRTLFixer", out var isFirstInstance);
+        if (!isFirstInstance) return;
+
         AppPaths.EnsureDirectories();
-        var logger = new SafeLogger(AppPaths.LogPath, LogLevel.Information, developerMode: false);
+        using var logger = new SafeLogger(AppPaths.LogPath, LogLevel.Information, developerMode: false);
 
         logger.Log(LogLevel.Information, LogCategories.App, "launching", ("version", Constants.AppVersion));
 
@@ -20,12 +23,9 @@ internal static class Program
         var settings = settingsStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
 
         var profiles = new ProfileRegistry();
-        var portPicker = new PortPicker();
         var watcher = new ProcessWatcher(profiles, logger);
-        watcher.SetPortRange(settings.PortRange.Min, settings.PortRange.Max);
         watcher.Configure(settings.ReconciliationIntervalSeconds, settings.DeveloperDiagnosticsEnabled, settings.InitialScanDelayMs);
-        var relaunch = new RelaunchService(logger, portPicker);
-        var orchestrator = new Orchestrator(logger, profiles, watcher, relaunch, settingsStore, settings);
+        var orchestrator = new Orchestrator(logger, profiles, watcher, settingsStore, settings);
 
         ApplicationConfiguration.Initialize();
         Application.Run(new TrayApplicationContext(orchestrator, logger, settingsStore));

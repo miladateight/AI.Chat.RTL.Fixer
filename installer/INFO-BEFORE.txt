@@ -11,5 +11,5 @@ No telemetry. No analytics. No external network calls. It only talks to
 debug-enabled target apps over local loopback (127.0.0.1).
 
 Note on status: detecting a supported app is not the same as a verified fix.
-App profiles (Claude, Codex, ZCode, ...) stay Experimental until verified on a
-real installation. See docs/TESTPLAN.md.
+App profiles stay Experimental until verified on a real installation. See
+docs/TESTPLAN.md.
