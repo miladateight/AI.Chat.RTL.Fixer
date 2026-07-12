@@ -9,7 +9,7 @@
 [English](README.md) - [فارسی](README.fa.md)
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0a1622)](#system-requirements)
-[![Version](https://img.shields.io/badge/version-0.3.0--pre-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.3.0)
+[![Version](https://img.shields.io/badge/version-0.4.0--pre-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.4.0)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 
 </div>
@@ -20,12 +20,12 @@ AI Chat RTL Fixer is a free and open-source Windows tray tool that improves RTL 
 
 > **Scope:** the chat surface only. The sidebar, title bar, menus, settings, file tree, code editor and terminal panels are never modified. Everything is **runtime-only** — closing or disabling the tool removes all changes, and restarting the target app normally always returns it to a clean state.
 
-> ⚠️ **v0.3.0 is a pre-release / framework build.** No app profile is marked *Stable* yet. Detecting an app is **not** the same as a verified fix — see [Supported apps](#supported-apps).
+> ⚠️ **v0.4.0 is a pre-release / framework build.** No app profile is marked *Stable* yet. Detecting an app is **not** the same as a verified fix — see [Supported apps](#supported-apps).
 
 ## Download
 
-- Installer: [AIChatRTLFixerSetup-0.3.0.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.3.0/AIChatRTLFixerSetup-0.3.0.exe)
-- SHA256: [AIChatRTLFixerSetup-0.3.0.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.3.0/AIChatRTLFixerSetup-0.3.0.exe.sha256)
+- Installer: [AIChatRTLFixerSetup-0.4.0.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.4.0/AIChatRTLFixerSetup-0.4.0.exe)
+- SHA256: [AIChatRTLFixerSetup-0.4.0.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.4.0/AIChatRTLFixerSetup-0.4.0.exe.sha256)
 - All releases: [GitHub Releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
 
 Free and open-source. No account, no license key, no network access required.
@@ -58,7 +58,7 @@ For Electron-based apps, AI Chat RTL Fixer attaches only to an **already-availab
 
 **Status meanings:** *Stable* = verified against a real installed app version · *Experimental* = works but may break after app updates · *Planned* = detected/known, no safe injection yet · *Unsupported* = no safe method found yet.
 
-> **No profile is marked Stable in v0.3.0.** Detection does not mean support.
+> **No profile is marked Stable in v0.4.0.** Detection does not mean support.
 
 ## Privacy & security
 
@@ -70,7 +70,7 @@ For Electron-based apps, AI Chat RTL Fixer attaches only to an **already-availab
 
 ## Install & run
 
-**Installer (recommended):** run `AIChatRTLFixerSetup-0.3.0.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, adds a Start Menu shortcut (desktop shortcut optional), and a standard uninstaller. It does **not** force "Start with Windows". Uninstalling removes the installed files and — only if you confirm — your settings/logs.
+**Installer (recommended):** run `AIChatRTLFixerSetup-0.4.0.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, adds a Start Menu shortcut (desktop shortcut optional), and a standard uninstaller. It does **not** force "Start with Windows". Uninstalling removes the installed files and — only if you confirm — your settings/logs.
 
 **Portable (no install):** run `AI.ChatRTLFixer.Tray.exe` from either build:
 
@@ -102,14 +102,14 @@ Outputs are written under `dist\`:
 ```text
 dist\portable-framework-dependent\AI.ChatRTLFixer.Tray.exe
 dist\portable-self-contained-win-x64\AI.ChatRTLFixer.Tray.exe
-dist\installer\AIChatRTLFixerSetup-0.3.0.exe
+dist\installer\AIChatRTLFixerSetup-0.4.0.exe
 ```
 
 See [docs/RELEASE.md](docs/RELEASE.md) for details, and [docs/README.md](docs/README.md) for full documentation.
 
 The current AST-only project map is available as an [interactive graph](graphify-out/graph.html) and a [structural report](graphify-out/GRAPH_REPORT.md).
 
-## Validation status (v0.3.0)
+## Validation status (v0.4.0)
 
 - `dotnet build` (Release): pass — 0 warnings, 0 errors
 - `dotnet test`: pass — 69/69 (Core 8, Rules 42, Integration 19 incl. Playwright)

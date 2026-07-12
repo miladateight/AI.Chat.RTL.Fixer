@@ -18,9 +18,21 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/miladateight/AI.Chat.RTL.Fixer</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
-    <Version>0.3.0</Version>
-    <AssemblyVersion>0.3.0.0</AssemblyVersion>
-    <FileVersion>0.3.0.0</FileVersion>
+    <Version>0.4.0</Version>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
+    <FileVersion>0.4.0.0</FileVersion>
+  </PropertyGroup>
+
+  <!-- Runtime footprint. This tool only ever compares strings ordinally and
+       logs with InvariantCulture, so it does not need ICU: dropping it removes
+       ~28 MB of unpacked globalization data and lowers memory. Workstation,
+       non-concurrent GC keeps the resident set small for a mostly-idle tray
+       process instead of pre-reserving background-GC heaps. -->
+  <PropertyGroup>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredCompilation>true</TieredCompilation>
   </PropertyGroup>
 
 </Project>

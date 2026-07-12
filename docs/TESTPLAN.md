@@ -114,14 +114,14 @@ Automated in this environment (via `scripts\build-all.ps1`):
 - [x] `dotnet build AI.ChatRTLFixer.sln` succeeds (0 warnings, 0 errors).
 - [x] `dotnet test AI.ChatRTLFixer.sln` — 69/69 pass (Core 8, Rules 42, Integration 19 incl. Playwright).
 - [x] `scripts\publish.ps1` produces both portable outputs under `dist\`.
-- [ ] `scripts\package-installer.ps1` compiles `dist\installer\AIChatRTLFixerSetup-0.3.0.exe` (Inno Setup) + `.sha256`.
-- [ ] Published exe file properties: ProductVersion `0.3.0`, FileVersion `0.3.0.0`, Company `Milad AT8`, Product `AI Chat RTL Fixer`.
+- [ ] `scripts\package-installer.ps1` compiles `dist\installer\AIChatRTLFixerSetup-0.4.0.exe` (Inno Setup) + `.sha256`.
+- [ ] Published exe file properties: ProductVersion `0.4.0`, FileVersion `0.4.0.0`, Company `Milad AT8`, Product `AI Chat RTL Fixer`.
 - [x] Self-contained exe launches, stays responsive, creates `%AppData%\AIChatRTLFixer\{settings.json, logs\rtlfixer.log}`.
 
 Manual, on a real machine (needs admin for Program Files; not run in the build
 environment because the session was non-elevated):
 
-- [ ] Run `AIChatRTLFixerSetup-0.3.0.exe`; UAC prompt appears (Program Files install).
+- [ ] Run `AIChatRTLFixerSetup-0.4.0.exe`; UAC prompt appears (Program Files install).
 - [ ] Installs to `C:\Program Files\AI Chat RTL Fixer`; exe/shortcut show the app icon.
 - [ ] Start Menu shortcut **AI Chat RTL Fixer** launches the tray app.
 - [ ] Desktop shortcut is created only when its (unchecked) task is selected.

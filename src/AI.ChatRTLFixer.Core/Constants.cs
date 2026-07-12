@@ -10,7 +10,7 @@ public static class Constants
     public const string ProductName = "AI Chat RTL Fixer";
 
     /// <summary>Product version. Keep in sync with Directory.Build.props and the installer.</summary>
-    public const string AppVersion = "0.3.0";
+    public const string AppVersion = "0.4.0";
 
     /// <summary>Folder name under %AppData% used for settings and logs.</summary>
     public const string AppDataFolder = "AIChatRTLFixer";

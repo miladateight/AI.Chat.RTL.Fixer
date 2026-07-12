@@ -150,21 +150,36 @@ public static class ScriptBuilder
       try { return el.matches(selector); } catch (e) { return false; }
     }
 
-    function scanSubtree(root) {
-      if (!root) return;
-      if (root.nodeType !== 1) root = root.parentElement;
-      if (!root || !root.querySelectorAll) return;
+    // Cache the chat-container lookup. querySelector runs on the target app's
+    // main thread; calling it once per mutation during a streaming render burst
+    // is enough to make a busy chat app feel sluggish. isConnected is O(1) and
+    // lets us drop a stale node (e.g. the whole chat root was replaced) and
+    // re-query only then.
+    var chatRootCache = null;
+    function getChatRoot() {
+      if (chatRootCache && chatRootCache.isConnected) return chatRootCache;
+      chatRootCache = document.querySelector(CFG.chatContainer);
+      return chatRootCache;
+    }
+
+    // Precompute the block selector once instead of rebuilding it on every scan.
+    var BLOCK_SELECTOR = (function () {
       var sel = [];
       if (CFG.userMessage) sel.push(CFG.userMessage);
       if (CFG.assistantMessage) sel.push(CFG.assistantMessage);
       sel.push('p','li','h1','h2','h3','h4','h5','blockquote','td','dd','div');
+      return sel.join(', ');
+    })();
+
+    function scanSubtree(root) {
+      if (!root) return;
+      if (root.nodeType !== 1) root = root.parentElement;
+      if (!root || !root.querySelectorAll) return;
       try {
-        var selector = sel.join(', ');
-        if (isCandidate(root, selector)) processBlock(root);
-        var nodes = root.querySelectorAll(selector);
+        if (isCandidate(root, BLOCK_SELECTOR)) processBlock(root);
+        var nodes = root.querySelectorAll(BLOCK_SELECTOR);
         for (var i = 0; i < nodes.length; i++) processBlock(nodes[i]);
       } catch (e) {}
-      installComposer();
     }
 
     function fixComposer(el) {
@@ -181,10 +196,14 @@ public static class ScriptBuilder
       timer = null;
       var batch = pending.splice(0, pending.length);
       for (var i = 0; i < batch.length; i++) scanSubtree(batch[i]);
+      // Once per batch, not once per scanned node: keeps the composer binding
+      // current (it can be swapped out) without repeating a querySelector for
+      // every block touched during a burst.
+      installComposer();
     }
     function schedule(node) {
       var target = node && node.nodeType === 1 ? node : (node && node.parentElement) || document.body;
-      var chatRoot = document.querySelector(CFG.chatContainer);
+      var chatRoot = getChatRoot();
       if (!chatRoot || !(target === chatRoot || chatRoot.contains(target) || target.contains(chatRoot))) return;
       // Collapse nested work and cap bursts from streaming/render-heavy UIs.
       for (var i = pending.length - 1; i >= 0; i--) {
@@ -198,7 +217,7 @@ public static class ScriptBuilder
     }
 
     function startObserver() {
-      var root = document.querySelector(CFG.chatContainer);
+      var root = getChatRoot();
       if (!document.body || typeof MutationObserver === 'undefined') return;
       var obs = new MutationObserver(function (muts) {
         for (var i = 0; i < muts.length; i++) {

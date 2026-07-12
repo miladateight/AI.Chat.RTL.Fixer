@@ -9,7 +9,7 @@
 [English](README.md) - [فارسی](README.fa.md)
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0a1622)](#پیشنیازها)
-[![Version](https://img.shields.io/badge/version-0.3.0--pre-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.3.0)
+[![Version](https://img.shields.io/badge/version-0.4.0--pre-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.4.0)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 
 </div>
@@ -22,12 +22,12 @@
 
 > **محدوده:** فقط ناحیه‌ی چت. سایدبار، نوار عنوان، منوها، تنظیمات، درخت فایل، ادیتور کد و ترمینال هیچ‌وقت تغییر نمی‌کنند. همه‌چیز **runtime-only** است — با بستن یا غیرفعال‌کردن ابزار، همه‌ی تغییرات حذف می‌شوند و ری‌استارت عادی برنامه‌ی هدف همیشه آن را به حالت تمیز برمی‌گرداند.
 
-> ⚠️ **نسخه‌ی 0.3.0 یک pre-release / نسخه‌ی چارچوبی است.** هنوز هیچ پروفایل برنامه‌ای *Stable* علامت نخورده. تشخیص یک برنامه **به‌معنای** فیکسِ تأییدشده نیست — بخش [برنامه‌های پشتیبانی‌شده](#برنامه‌های-پشتیبانی‌شده) را ببینید.
+> ⚠️ **نسخه‌ی 0.4.0 یک pre-release / نسخه‌ی چارچوبی است.** هنوز هیچ پروفایل برنامه‌ای *Stable* علامت نخورده. تشخیص یک برنامه **به‌معنای** فیکسِ تأییدشده نیست — بخش [برنامه‌های پشتیبانی‌شده](#برنامه‌های-پشتیبانی‌شده) را ببینید.
 
 ## دانلود
 
-- نصب‌کننده: [AIChatRTLFixerSetup-0.3.0.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.3.0/AIChatRTLFixerSetup-0.3.0.exe)
-- SHA256: [AIChatRTLFixerSetup-0.3.0.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.3.0/AIChatRTLFixerSetup-0.3.0.exe.sha256)
+- نصب‌کننده: [AIChatRTLFixerSetup-0.4.0.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.4.0/AIChatRTLFixerSetup-0.4.0.exe)
+- SHA256: [AIChatRTLFixerSetup-0.4.0.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.4.0/AIChatRTLFixerSetup-0.4.0.exe.sha256)
 - همه‌ی نسخه‌ها: [GitHub Releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
 
 رایگان و متن‌باز. بدون نیاز به حساب کاربری، لایسنس یا دسترسی به اینترنت.
@@ -60,7 +60,7 @@
 
 **معنی وضعیت‌ها:** *Stable* = تأییدشده روی نسخه‌ی نصب‌شده‌ی واقعی · *Experimental* = کار می‌کند ولی ممکن است بعد از آپدیت برنامه بشکند · *Planned* = شناخته/تشخیص داده می‌شود ولی هنوز تزریق امن ندارد · *Unsupported* = هنوز روش امنی پیدا نشده.
 
-> **در نسخه‌ی 0.3.0 هیچ profile‌ای Stable نیست.** تشخیص به‌معنای پشتیبانی نیست.
+> **در نسخه‌ی 0.4.0 هیچ profile‌ای Stable نیست.** تشخیص به‌معنای پشتیبانی نیست.
 
 ## حریم خصوصی و امنیت
 
@@ -72,7 +72,7 @@
 
 ## نصب و اجرا
 
-**installer (پیشنهادی):** فایل `AIChatRTLFixerSetup-0.3.0.exe` را اجرا کنید. در `C:\Program Files\AI Chat RTL Fixer` نصب می‌شود، یک shortcut در Start Menu می‌سازد (desktop shortcut اختیاری) و یک uninstaller استاندارد دارد. **«اجرا هنگام شروع ویندوز» را به‌زور فعال نمی‌کند.** هنگام حذف، فایل‌های نصب‌شده پاک می‌شوند و — فقط اگر تأیید کنید — تنظیمات/لاگ‌های شما.
+**installer (پیشنهادی):** فایل `AIChatRTLFixerSetup-0.4.0.exe` را اجرا کنید. در `C:\Program Files\AI Chat RTL Fixer` نصب می‌شود، یک shortcut در Start Menu می‌سازد (desktop shortcut اختیاری) و یک uninstaller استاندارد دارد. **«اجرا هنگام شروع ویندوز» را به‌زور فعال نمی‌کند.** هنگام حذف، فایل‌های نصب‌شده پاک می‌شوند و — فقط اگر تأیید کنید — تنظیمات/لاگ‌های شما.
 
 **portable (بدون نصب):** فایل `AI.ChatRTLFixer.Tray.exe` را از یکی از این دو نسخه اجرا کنید:
 
@@ -104,14 +104,14 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 ```text
 dist\portable-framework-dependent\AI.ChatRTLFixer.Tray.exe
 dist\portable-self-contained-win-x64\AI.ChatRTLFixer.Tray.exe
-dist\installer\AIChatRTLFixerSetup-0.3.0.exe
+dist\installer\AIChatRTLFixerSetup-0.4.0.exe
 ```
 
 جزئیات در [docs/RELEASE.md](docs/RELEASE.md) و مستندات کامل در [docs/README.md](docs/README.md).
 
 نقشهٔ فعلی پروژه به‌صورت AST-only در [گراف تعاملی](graphify-out/graph.html) و [گزارش ساختاری](graphify-out/GRAPH_REPORT.md) موجود است.
 
-## وضعیت اعتبارسنجی (v0.3.0)
+## وضعیت اعتبارسنجی (v0.4.0)
 
 - ‏`dotnet build` (Release): pass — بدون warning و error
 - ‏`dotnet test`: pass — ‏69/69 (Core 8، Rules 42، Integration 19 شامل Playwright)

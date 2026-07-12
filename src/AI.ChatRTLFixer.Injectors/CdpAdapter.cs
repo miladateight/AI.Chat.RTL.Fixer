@@ -343,7 +343,12 @@ public sealed class CdpAdapter : ITargetAdapter
         try
         {
             if (_ws.State == WebSocketState.Open)
-                await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "exit", CancellationToken.None);
+            {
+                // Bound the close handshake: a wedged endpoint must never freeze
+                // application shutdown (Dispose blocks on this during exit).
+                using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+                await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "exit", closeCts.Token);
+            }
         }
         catch { }
         _ws.Dispose();

@@ -6,7 +6,7 @@ This project ships in three forms, all produced under `dist\`:
 |--------|------|-------|
 | Portable, framework-dependent | `dist\portable-framework-dependent\` | Small (~0.8 MB exe). Needs the .NET 8 Desktop Runtime. |
 | Portable, self-contained | `dist\portable-self-contained-win-x64\` | ~63 MB exe. No prerequisites. |
-| Windows installer | `dist\installer\AIChatRTLFixerSetup-0.3.0.exe` | Inno Setup, bundles the self-contained build. |
+| Windows installer | `dist\installer\AIChatRTLFixerSetup-0.4.0.exe` | Inno Setup, bundles the self-contained build. |
 
 ## Prerequisites
 
