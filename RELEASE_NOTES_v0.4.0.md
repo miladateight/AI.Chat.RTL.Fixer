@@ -6,6 +6,12 @@ injected fix noticeably lighter on busy chat windows.
 
 ## Highlights
 
+- Smarter right-alignment: a message rendered as a plain `<div>`/`<td>` that
+  holds only inline formatting (a bold word, a link, a code span) is now
+  recognized as real text and flipped, instead of being skipped as a layout
+  container. This fixes Persian/Arabic sentences — especially user bubbles and
+  streamed answers — that previously stayed left-aligned. Genuine layout
+  containers (a `<div>` wrapping block children) are still left untouched.
 - Smoother streaming: the injected script caches the chat-container lookup and
   reuses one precomputed selector, so a streaming answer no longer runs a DOM
   query on the target app's main thread for every mutation. Heavy AI chats stay
@@ -14,13 +20,16 @@ injected fix noticeably lighter on busy chat windows.
   workstation, non-concurrent garbage collector, lowering memory use.
 - Safer shutdown: the CDP socket close is time-bounded, so a wedged endpoint can
   never freeze application exit.
+- Awesomer installer: stronger LZMA2/ultra64 compression for a smaller download,
+  plus an optional "start with Windows" choice during setup.
 
 ## Validation
 
 - Release build: 0 warnings, 0 errors.
-- Automated tests: 69 passed (8 core, 42 rules, 19 browser/integration), including
-  end-to-end runs of the real injected script (streaming, chat-root replacement,
-  composer replacement, copy, restore).
+- Automated tests: 71 passed (8 core, 42 rules, 21 browser/integration), including
+  end-to-end runs of the real injected script (inline-child text blocks, layout
+  containers, streaming, chat-root replacement, composer replacement, copy,
+  restore).
 
 ## Safety
 
@@ -38,6 +47,12 @@ a real installed application version.
 حفظ شده (ابزار هیچ برنامهٔ هدفی را اجرا، بسته یا دوباره راه‌اندازی نمی‌کند) و فیکس
 تزریق‌شده روی پنجره‌های پرترافیک محسوس‌تر سبک شده است.
 
+- راست‌چینِ هوشمندتر: پیامی که به‌صورت یک `<div>`/`<td>` ساده با فقط قالب‌بندی inline
+  (یک کلمهٔ bold، یک لینک، یک code span) نمایش داده می‌شود حالا به‌عنوان متن واقعی
+  شناسایی و راست‌چین می‌شود، نه اینکه به‌عنوان ظرفِ چیدمان نادیده گرفته شود. این همان
+  جمله‌های فارسی/عربی — به‌ویژه پیام‌های خودِ کاربر و پاسخ‌های streamشده — را که پیش‌تر
+  چپ‌چین می‌ماندند درست می‌کند. ظرف‌های واقعیِ چیدمان (divای که فرزندِ block دارد)
+  همچنان دست‌نخورده می‌مانند.
 - روان‌تر هنگام streaming: اسکریپت تزریقی، جست‌وجوی ریشهٔ گفتگو را کش می‌کند و از یک
   selector از پیش‌محاسبه‌شده استفاده می‌کند؛ در نتیجه پاسخِ در حال پخش دیگر برای هر
   تغییر DOM یک query روی ریسمان اصلی برنامهٔ هدف اجرا نمی‌کند. چت‌های سنگین هوش

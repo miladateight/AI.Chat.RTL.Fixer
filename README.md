@@ -112,7 +112,7 @@ The current AST-only project map is available as an [interactive graph](graphify
 ## Validation status (v0.4.0)
 
 - `dotnet build` (Release): pass — 0 warnings, 0 errors
-- `dotnet test`: pass — 69/69 (Core 8, Rules 42, Integration 19 incl. Playwright)
+- `dotnet test`: pass — 71/71 (Core 8, Rules 42, Integration 21 incl. Playwright)
 - Publish framework-dependent: pass
 - Publish self-contained win-x64: pass
 - Inno Setup installer compile: pass

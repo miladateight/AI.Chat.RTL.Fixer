@@ -126,13 +126,35 @@ public static class ScriptBuilder
       return false;
     }
 
+    // Block-level tags. A DIV/TD that contains any of these is a layout
+    // container, not a paragraph, so flipping it would rotate whole regions of
+    // the app. But a DIV/TD whose children are ALL inline (span/a/strong/code/
+    // bdi/img/…) is a real text block: many chat UIs render user bubbles and
+    // streamed answers exactly this way. Skipping those was the main cause of
+    // Persian sentences that stayed left-aligned, so we now classify them.
+    var BLOCK_CHILD_TAGS = {
+      DIV: 1, P: 1, UL: 1, OL: 1, LI: 1, TABLE: 1, THEAD: 1, TBODY: 1, TFOOT: 1,
+      TR: 1, TD: 1, TH: 1, SECTION: 1, ARTICLE: 1, HEADER: 1, FOOTER: 1, ASIDE: 1,
+      NAV: 1, MAIN: 1, FIGURE: 1, FIGCAPTION: 1, BLOCKQUOTE: 1, PRE: 1, HR: 1,
+      FORM: 1, DL: 1, DT: 1, DD: 1, DETAILS: 1, SUMMARY: 1,
+      H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1
+    };
+    function hasBlockChild(el) {
+      var kids = el.children;
+      if (!kids) return false;
+      for (var i = 0; i < kids.length; i++) {
+        if (BLOCK_CHILD_TAGS[kids[i].tagName] === 1) return true;
+      }
+      return false;
+    }
+
     function processBlock(el) {
       if (!el || !el.getAttribute) return;
-      // For generic DIV/TD nodes only handle true text leaves (no element
-      // children) so we never flip a layout container. P/LI/headings may hold
-      // inline children (strong/code/a) and are always safe to classify.
+      // A generic DIV/TD is a text block only when it has no block-level child;
+      // otherwise it is a container and must not be flipped. P/LI/headings/
+      // blockquote may always hold inline children and are safe to classify.
       var tag = el.tagName;
-      if ((tag === 'DIV' || tag === 'TD') && el.children && el.children.length > 0) return;
+      if ((tag === 'DIV' || tag === 'TD') && hasBlockChild(el)) return;
       var text = el.textContent || '';
       if (!text.trim()) return;
       var insideProtected = isProtected(el);

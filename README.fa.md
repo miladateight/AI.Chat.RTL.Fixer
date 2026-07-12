@@ -114,7 +114,7 @@ dist\installer\AIChatRTLFixerSetup-0.4.0.exe
 ## وضعیت اعتبارسنجی (v0.4.0)
 
 - ‏`dotnet build` (Release): pass — بدون warning و error
-- ‏`dotnet test`: pass — ‏69/69 (Core 8، Rules 42، Integration 19 شامل Playwright)
+- ‏`dotnet test`: pass — ‏71/71 (Core 8، Rules 42، Integration 21 شامل Playwright)
 - publish نسخه‌ی framework-dependent: pass
 - publish نسخه‌ی self-contained win-x64: pass
 - ساخت installer با Inno Setup: pass

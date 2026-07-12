@@ -150,6 +150,47 @@ public class MockDomTests
     }
 
     [Fact]
+    public async Task Script_RightAlignsPersianDivWithInlineChildren()
+    {
+        // A user bubble / streamed answer rendered as a DIV that holds only
+        // inline formatting (a <b>) is a real text block and must be flipped.
+        using var pw = await PlaywrightFixture.CreateAsync();
+        var page = await pw.NewPageAsync();
+        await page.SetContentAsync(MockHtml);
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions { Content = BuildScript() });
+
+        await page.EvaluateAsync(
+            "var d = document.createElement('div');" +
+            "d.id = 'inline-bubble';" +
+            "d.innerHTML = 'این یک <b>جمله</b> فارسی است';" +
+            "document.querySelector('#messages').appendChild(d);");
+        await page.WaitForTimeoutAsync(300);
+
+        Assert.Equal("rtl", await page.Locator("#inline-bubble").GetAttributeAsync("dir"));
+    }
+
+    [Fact]
+    public async Task Script_DoesNotFlipContainerDivWithBlockChildren()
+    {
+        // A DIV that wraps block-level children is a layout container: it must
+        // stay untouched while its inner paragraph is flipped.
+        using var pw = await PlaywrightFixture.CreateAsync();
+        var page = await pw.NewPageAsync();
+        await page.SetContentAsync(MockHtml);
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions { Content = BuildScript() });
+
+        await page.EvaluateAsync(
+            "var wrap = document.createElement('div');" +
+            "wrap.id = 'container';" +
+            "wrap.innerHTML = '<p id=inner>پاراگراف فارسی</p>';" +
+            "document.querySelector('#messages').appendChild(wrap);");
+        await page.WaitForTimeoutAsync(300);
+
+        Assert.Null(await page.Locator("#container").GetAttributeAsync("dir"));
+        Assert.Equal("rtl", await page.Locator("#inner").GetAttributeAsync("dir"));
+    }
+
+    [Fact]
     public async Task Script_SurvivesChatRootReplacement()
     {
         using var pw = await PlaywrightFixture.CreateAsync();
