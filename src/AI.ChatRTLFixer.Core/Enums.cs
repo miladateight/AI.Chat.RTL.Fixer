@@ -91,11 +91,26 @@ public enum AppRuntimeState
     Unknown,
     Detected,
     RunningNoDebugPort,
+
+    /// <summary>Detected without a debug port; a relaunch is needed. Surfaced in the tray for one-click consent.</summary>
+    RelaunchRequired,
+
+    /// <summary>Waiting on the user's explicit yes/no in the relaunch confirmation dialog.</summary>
+    RelaunchPromptShown,
+
+    /// <summary>The user consented; the old process is being closed and a new one started with debug args.</summary>
+    Relaunching,
+
+    /// <summary>Relaunch completed; waiting for the new process to publish its CDP endpoint.</summary>
+    WaitingForCdp,
     CdpDiscovered,
     Attached,
     InjectionSucceeded,
     InjectionFailed,
     CdpUnsupported,
+
+    /// <summary>Relaunched with debug args, but the new process never opened the port (args were dropped/ignored).</summary>
+    DebugArgsIgnored,
     Exited,
     DisabledByUser,
     Unsupported,

@@ -9,12 +9,13 @@ using AI.ChatRTLFixer.Profiles;
 
 namespace AI.ChatRTLFixer.Tray;
 
-/// <summary>Coordinates detection and CDP attachment as a bounded per-process state machine.</summary>
+/// <summary>Coordinates detection, CDP attachment and relaunch as a bounded per-process state machine.</summary>
 public sealed class Orchestrator : IDisposable
 {
     private readonly SafeLogger _logger;
     private readonly ProfileRegistry _profiles;
     private readonly IProcessWatcher _watcher;
+    private readonly IRelaunchService _relaunch;
     private readonly ISettingsStore _settingsStore;
     private readonly Dictionary<int, RuntimeEntry> _entries = new();
     private readonly object _gate = new();
@@ -24,11 +25,13 @@ public sealed class Orchestrator : IDisposable
     public event EventHandler? StateChanged;
     public IReadOnlyCollection<AppProfile> Profiles => _profiles.All;
     public AppSettings Settings => _settings;
+    public IReadOnlyCollection<DetectedApp> PendingRelaunch =>
+        Entries().Where(x => x.State is AppRuntimeState.RelaunchRequired or AppRuntimeState.RelaunchPromptShown).Select(x => x.App).ToList();
     public IReadOnlyCollection<RuntimeAppStatus> RuntimeStatuses => Entries().Select(x => new RuntimeAppStatus(x.App, x.State, x.Detail, x.CooldownUntilUtc)).ToList();
 
-    public Orchestrator(SafeLogger logger, ProfileRegistry profiles, IProcessWatcher watcher, ISettingsStore settingsStore, AppSettings initialSettings)
+    public Orchestrator(SafeLogger logger, ProfileRegistry profiles, IProcessWatcher watcher, IRelaunchService relaunch, ISettingsStore settingsStore, AppSettings initialSettings)
     {
-        _logger = logger; _profiles = profiles; _watcher = watcher; _settingsStore = settingsStore; _settings = initialSettings;
+        _logger = logger; _profiles = profiles; _watcher = watcher; _relaunch = relaunch; _settingsStore = settingsStore; _settings = initialSettings;
     }
 
     public void Start()
@@ -69,19 +72,30 @@ public sealed class Orchestrator : IDisposable
                 // An already-running Electron process can publish its endpoint a
                 // moment after its command line becomes visible. Retry only to
                 // the configured discovery deadline, with backoff.
-                await WaitForCdpAndAttachAsync(entry, profile, port);
+                await WaitForCdpAndAttachAsync(entry, profile, port, afterRelaunch: false);
                 return;
             }
 
-            // Never close or restart another application. If its local debug
-            // endpoint was enabled by the application/user, the watcher will
-            // observe the port and attach on the next event-driven scan.
-            Transition(entry, AppRuntimeState.RunningNoDebugPort, "waiting-for-existing-local-endpoint");
+            // No debug port. The fixer never enables one without explicit consent:
+            // either the app already had one relaunched-and-remembered, or the
+            // user must click through the tray's relaunch action.
+            Transition(entry, AppRuntimeState.RunningNoDebugPort, "no-remote-debugging-port");
+            if (DateTime.UtcNow < entry.CooldownUntilUtc)
+            {
+                _logger.Log(LogLevel.Information, LogCategories.Relaunch, "cooldown-active", ("app", app.AppId), ("pid", app.ProcessId));
+                return;
+            }
+            Transition(entry, AppRuntimeState.RelaunchRequired, "requires-relaunch");
+            var alreadyConsented = _settings.Apps.TryGetValue(app.AppId, out var toggle) && toggle.RelaunchConsentGranted;
+            if (_settings.AutoRelaunchAfterConsent && alreadyConsented)
+                await RelaunchEntryAsync(entry, profile, _ => Task.FromResult(true));
+            else
+                Transition(entry, AppRuntimeState.RelaunchPromptShown, "awaiting-user-consent");
         }
         finally { entry.Gate.Release(); StateChanged?.Invoke(this, EventArgs.Empty); }
     }
 
-    private async Task AttachAsync(RuntimeEntry entry, AppProfile profile, int port)
+    private async Task AttachAsync(RuntimeEntry entry, AppProfile profile, int port, bool afterRelaunch)
     {
         if (entry.Adapter is null)
         {
@@ -91,13 +105,14 @@ public sealed class Orchestrator : IDisposable
         var timeout = TimeSpan.FromSeconds(Math.Clamp(_settings.DiscoveryTimeoutSeconds, 2, 60));
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(entry.ExitToken);
         timeoutCts.CancelAfter(timeout);
-        Transition(entry, AppRuntimeState.CdpDiscovered, $"port={port}");
+        Transition(entry, afterRelaunch ? AppRuntimeState.WaitingForCdp : AppRuntimeState.CdpDiscovered, $"port={port}");
         AttachResult result;
         try { result = await entry.Adapter.AttachToPortAsync(profile, port, timeoutCts.Token); }
         catch (OperationCanceledException) { result = AttachResult.Failed(AttachFailure.Timeout, "discovery-timeout"); }
         if (!result.Success)
         {
-            Transition(entry, result.Failure == AttachFailure.Timeout ? AppRuntimeState.CdpUnsupported : AppRuntimeState.CdpUnsupported, result.Failure?.ToString() ?? "discovery-failed");
+            Transition(entry, AppRuntimeState.CdpUnsupported, result.Failure?.ToString() ?? "discovery-failed");
+            if (afterRelaunch) entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
             return;
         }
         Transition(entry, AppRuntimeState.Attached, $"port={port}");
@@ -112,17 +127,95 @@ public sealed class Orchestrator : IDisposable
         }
     }
 
-    private async Task WaitForCdpAndAttachAsync(RuntimeEntry entry, AppProfile profile, int port)
+    /// <summary>
+    /// Explicit, user-initiated relaunch (tray "Relaunch with RTL Fix…" click).
+    /// A null consent callback is deliberately treated as a rejection: no
+    /// implicit destructive action is ever taken. When the callback returns
+    /// true, that consent is remembered for this app so future detections
+    /// (e.g. the app closed and reopened later) can relaunch automatically
+    /// without asking again, subject to <see cref="AppSettings.AutoRelaunchAfterConsent"/>.
+    /// </summary>
+    public async Task<RelaunchResult> RelaunchAsync(DetectedApp app, Func<RelaunchWarning, Task<bool>>? consentCallback)
+    {
+        if (!_profiles.TryGet(app.AppId, out var profile)) return new RelaunchResult { Success = false, UserConsented = false, Detail = "unknown-profile" };
+        var entry = GetOrAdd(app);
+        await entry.Gate.WaitAsync();
+        try
+        {
+            if (consentCallback is null) return new RelaunchResult { Success = false, UserConsented = false, Detail = "consent-required" };
+            Func<RelaunchWarning, Task<bool>> wrapped = async warning =>
+            {
+                var consented = await consentCallback(warning);
+                if (consented) await PersistRelaunchConsentAsync(app.AppId);
+                return consented;
+            };
+            return await RelaunchEntryAsync(entry, profile, wrapped);
+        }
+        finally { entry.Gate.Release(); StateChanged?.Invoke(this, EventArgs.Empty); }
+    }
+
+    private async Task PersistRelaunchConsentAsync(string appId)
+    {
+        if (_settings.Apps.TryGetValue(appId, out var existing) && existing.RelaunchConsentGranted) return;
+        var enabled = _settings.Apps.TryGetValue(appId, out var current) ? current.Enabled : true;
+        _settings.Apps[appId] = new AppToggleState { Enabled = enabled, RelaunchConsentGranted = true };
+        await _settingsStore.SaveAsync(_settings, CancellationToken.None);
+    }
+
+    private async Task<RelaunchResult> RelaunchEntryAsync(RuntimeEntry entry, AppProfile profile, Func<RelaunchWarning, Task<bool>> consent)
+    {
+        if (profile.Status is SupportStatus.Unsupported or SupportStatus.Planned || profile.Cdp is null)
+        {
+            Transition(entry, AppRuntimeState.Unsupported, "relaunch-not-permitted-for-profile");
+            return new RelaunchResult { Success = false, UserConsented = false, Detail = "unsupported-profile" };
+        }
+        if (DateTime.UtcNow < entry.CooldownUntilUtc)
+            return new RelaunchResult { Success = false, UserConsented = true, Detail = "cooldown-active" };
+        Transition(entry, AppRuntimeState.Relaunching, "user-consented");
+        var result = await _relaunch.RelaunchWithRtlFixAsync(entry.App, profile, consent, entry.ExitToken);
+        if (!result.Success)
+        {
+            Transition(entry, AppRuntimeState.RelaunchRequired, result.Detail ?? "relaunch-failed");
+            entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
+            return result;
+        }
+        if (result.DebugPort is not int port) return result;
+        // DebugArgsVerified only means we could confirm the flag on the SPAWNED
+        // pid within a short window. MSIX/packaged Electron apps (Claude, ChatGPT,
+        // Codex, …) frequently re-exec or hand the window off to a different pid,
+        // so that check often reports false even though the relaunched instance
+        // DID bind the debug port. The authoritative success signal is whether CDP
+        // actually comes up on 127.0.0.1:port — so we always proceed to attach and
+        // only fall back to DebugArgsIgnored inside WaitForCdpAndAttachAsync if the
+        // endpoint never appears.
+        if (!result.DebugArgsVerified)
+            _logger.Log(LogLevel.Information, LogCategories.Relaunch, "args-unverified-attaching-anyway", ("app", profile.AppId), ("port", port));
+        Transition(entry, AppRuntimeState.WaitingForCdp, $"port={port}");
+        await WaitForCdpAndAttachAsync(entry, profile, port, afterRelaunch: true);
+        return result;
+    }
+
+    private async Task WaitForCdpAndAttachAsync(RuntimeEntry entry, AppProfile profile, int port, bool afterRelaunch)
     {
         var deadline = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.DiscoveryTimeoutSeconds, 2, 60));
-        var delay = 300;
+        // Right after a relaunch, the target's debug port typically comes up
+        // within ~1-3s of Electron/Chromium startup. Poll tightly at first so we
+        // attach and inject the instant it appears instead of leaving the app
+        // visibly un-fixed for an extra second or two of unnecessary backoff.
+        var delay = afterRelaunch ? 120 : 300;
+        var maxDelay = afterRelaunch ? 1000 : 2000;
         while (DateTime.UtcNow < deadline && !entry.ExitToken.IsCancellationRequested)
         {
-            await AttachAsync(entry, profile, port);
+            await AttachAsync(entry, profile, port, afterRelaunch);
             if (entry.State is AppRuntimeState.InjectionSucceeded or AppRuntimeState.InjectionFailed) return;
-            if (entry.State == AppRuntimeState.CdpUnsupported) { await Task.Delay(delay, entry.ExitToken).ContinueWith(_ => { }); delay = Math.Min(delay * 2, 2000); }
+            if (entry.State == AppRuntimeState.CdpUnsupported) { await Task.Delay(delay, entry.ExitToken).ContinueWith(_ => { }); delay = Math.Min(delay * 2, maxDelay); }
         }
-        Transition(entry, AppRuntimeState.CdpUnsupported, "cdp-discovery-timeout");
+        // The newly-created process must expose the args. The watcher will update it if it appears.
+        var current = _watcher.Snapshot().FirstOrDefault(x => x.AppId == entry.App.AppId && x.ProcessId != entry.App.ProcessId);
+        var argsIgnored = afterRelaunch && current?.HasDebugPort == false;
+        Transition(entry, argsIgnored ? AppRuntimeState.DebugArgsIgnored : AppRuntimeState.CdpUnsupported,
+            argsIgnored ? "debug-args-ignored" : "cdp-discovery-timeout");
+        if (afterRelaunch) entry.CooldownUntilUtc = DateTime.UtcNow.AddSeconds(Math.Clamp(_settings.RelaunchCooldownSeconds, 10, 3600));
     }
 
     private async Task InjectAsync(CdpAdapter adapter, AppProfile profile, CancellationToken ct)
@@ -188,7 +281,8 @@ public sealed class Orchestrator : IDisposable
     /// <summary>Enables or disables one profile and restores its live page immediately when disabled.</summary>
     public async Task SetAppEnabledAsync(string appId, bool enabled)
     {
-        _settings.Apps[appId] = new AppToggleState { Enabled = enabled };
+        var consentGranted = _settings.Apps.TryGetValue(appId, out var existing) && existing.RelaunchConsentGranted;
+        _settings.Apps[appId] = new AppToggleState { Enabled = enabled, RelaunchConsentGranted = consentGranted };
         var entries = Entries().Where(entry => string.Equals(entry.App.AppId, appId, StringComparison.OrdinalIgnoreCase)).ToList();
         if (!enabled)
         {

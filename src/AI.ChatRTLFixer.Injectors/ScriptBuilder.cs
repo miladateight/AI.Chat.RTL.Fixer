@@ -150,11 +150,12 @@ public static class ScriptBuilder
 
     function processBlock(el) {
       if (!el || !el.getAttribute) return;
-      // A generic DIV/TD is a text block only when it has no block-level child;
-      // otherwise it is a container and must not be flipped. P/LI/headings/
-      // blockquote may always hold inline children and are safe to classify.
+      // A generic DIV/TD/ARTICLE/SECTION is a text block only when it has no
+      // block-level child; otherwise it is a container and must not be
+      // flipped. P/LI/headings/blockquote may always hold inline children and
+      // are safe to classify.
       var tag = el.tagName;
-      if ((tag === 'DIV' || tag === 'TD') && hasBlockChild(el)) return;
+      if ((tag === 'DIV' || tag === 'TD' || tag === 'ARTICLE' || tag === 'SECTION') && hasBlockChild(el)) return;
       var text = el.textContent || '';
       if (!text.trim()) return;
       var insideProtected = isProtected(el);
@@ -177,10 +178,18 @@ public static class ScriptBuilder
     // is enough to make a busy chat app feel sluggish. isConnected is O(1) and
     // lets us drop a stale node (e.g. the whole chat root was replaced) and
     // re-query only then.
+    //
+    // Profile selectors are best-effort guesses per app and are frequently
+    // wrong (app updates, unverified profiles, apps we've never inspected). If
+    // CFG.chatContainer matches nothing, falling back to document.body means
+    // the scanner still runs instead of silently doing nothing forever: a
+    // slightly wider scan is far better than a fixer that never touches the
+    // page and lets the browser's native first-strong-character bidi algorithm
+    // (which reads LTR the instant a line starts with a Latin word) decide.
     var chatRootCache = null;
     function getChatRoot() {
       if (chatRootCache && chatRootCache.isConnected) return chatRootCache;
-      chatRootCache = document.querySelector(CFG.chatContainer);
+      chatRootCache = document.querySelector(CFG.chatContainer) || document.body;
       return chatRootCache;
     }
 
@@ -189,7 +198,7 @@ public static class ScriptBuilder
       var sel = [];
       if (CFG.userMessage) sel.push(CFG.userMessage);
       if (CFG.assistantMessage) sel.push(CFG.assistantMessage);
-      sel.push('p','li','h1','h2','h3','h4','h5','blockquote','td','dd','div');
+      sel.push('p','li','h1','h2','h3','h4','h5','blockquote','td','dd','div','article','section');
       return sel.join(', ');
     })();
 
@@ -258,7 +267,7 @@ public static class ScriptBuilder
     // --- copy interceptor (scoped to CopyRoot) ---
     function onCopy(e) {
       if (CFG.copyMode === 'Original') return;
-      var root = document.querySelector(CFG.copyRoot);
+      var root = document.querySelector(CFG.copyRoot) || document.body;
       if (!root || !root.contains(e.target)) return;
       var sel = window.getSelection();
       if (!sel || sel.isCollapsed) return;

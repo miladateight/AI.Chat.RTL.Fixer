@@ -84,6 +84,24 @@ public sealed class TrayApplicationContext : ApplicationContext
             detected.DropDownItems.Add("(none)").Enabled = false;
         menu.Items.Add(detected);
 
+        // Apps that need a relaunch with RTL Fix (detected without a debug port).
+        // Never automatic: every entry here requires the user to click it, then
+        // confirm the warning dialog, before anything is closed or restarted.
+        var pending = _orchestrator.PendingRelaunch;
+        if (pending.Count > 0)
+        {
+            menu.Items.Add(new ToolStripSeparator());
+            var relaunchMenu = new ToolStripMenuItem("Relaunch with RTL Fix…");
+            foreach (var app in pending)
+            {
+                var displayName = app.AppId;
+                if (_orchestrator.Profiles.FirstOrDefault(p => p.AppId == displayName) is { } prof)
+                    displayName = prof.DisplayName;
+                relaunchMenu.DropDownItems.Add(Mi(displayName, () => RelaunchAppAsync(app)));
+            }
+            menu.Items.Add(relaunchMenu);
+        }
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Mi("Settings...", OpenSettings));
         menu.Items.Add(Mi("Open logs", OpenLogs));
@@ -109,6 +127,48 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OpenSettings() => new SettingsForm(_orchestrator, _settingsStore, _logger).Show();
 
+    private async Task RelaunchAppAsync(DetectedApp app)
+    {
+        Func<RelaunchWarning, Task<bool>> consent = warning =>
+        {
+            var msg = $"{warning.Message}\n\nProceed with relaunch?";
+            // MessageBox.Show is thread-safe; the handler runs off the UI thread
+            // via async void, which is fine for a modal box.
+            var dr = MessageBox.Show(msg, $"Relaunch {warning.AppDisplayName}",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            return Task.FromResult(dr == DialogResult.Yes);
+        };
+
+        try
+        {
+            var result = await _orchestrator.RelaunchAsync(app, consent);
+            if (result.Success)
+            {
+                _notify.ShowBalloonTip(3000, Constants.ProductName,
+                    $"{app.AppId} relaunched with RTL Fix (port {result.DebugPort}).", ToolTipIcon.Info);
+            }
+            else if (result.ManualReopen && result.ManualCommand is not null)
+            {
+                MessageBox.Show(
+                    $"Automatic relaunch was not possible. Please close the app and reopen it manually:\n\n{result.ManualCommand}",
+                    "Manual reopen required", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else if (!result.UserConsented)
+            {
+                // User declined — nothing to do.
+            }
+            else
+            {
+                _notify.ShowBalloonTip(3000, Constants.ProductName,
+                    $"Relaunch of {app.AppId} failed: {result.Detail ?? "unknown"}.", ToolTipIcon.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Log(LogLevel.Error, LogCategories.Relaunch, "ui-relaunch-failed", ("app", app.AppId), ("msg", SafeLogger.Redact(ex.Message)));
+        }
+    }
+
     private async Task ExportDetectionReportAsync()
     {
         try
@@ -127,7 +187,11 @@ public sealed class TrayApplicationContext : ApplicationContext
     private static string Readable(AppRuntimeState state) => state switch
     {
         AppRuntimeState.RunningNoDebugPort => "Detected, waiting for local endpoint",
+        AppRuntimeState.RelaunchRequired or AppRuntimeState.RelaunchPromptShown => "Detected — click \"Relaunch with RTL Fix\" to enable",
+        AppRuntimeState.Relaunching => "Relaunching…",
+        AppRuntimeState.WaitingForCdp => "Relaunched, waiting for local endpoint",
         AppRuntimeState.CdpUnsupported => "Detected, CDP unavailable",
+        AppRuntimeState.DebugArgsIgnored => "Detected, debug args ignored by app",
         AppRuntimeState.InjectionSucceeded => "Attached",
         AppRuntimeState.Unsupported => "Unsupported / Planned",
         _ => state.ToString(),

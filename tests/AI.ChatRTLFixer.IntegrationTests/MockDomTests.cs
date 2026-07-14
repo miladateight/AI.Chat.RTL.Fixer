@@ -224,6 +224,52 @@ public class MockDomTests
         Assert.True(styleCount >= 0);
     }
 
+    private static readonly AppProfile MismatchedContainerProfile = new()
+    {
+        AppId = "mock-mismatched",
+        DisplayName = "Mock Mismatched",
+        UiTechnology = UiTechnology.Electron,
+        Status = SupportStatus.Experimental,
+        Selectors = new Selectors
+        {
+            // Deliberately wrong: does not exist anywhere in MockHtml. A real
+            // app profile can be wrong the same way (unverified/generic
+            // selectors, app UI changes). The fixer must still find and flip
+            // real chat text instead of silently scanning nothing.
+            ChatContainer = "#this-selector-does-not-exist",
+            MessageRoot = "#messages",
+            UserMessage = ".user-msg",
+            AssistantMessage = ".assistant-msg",
+            Composer = "#composer",
+            CodeBlock = "pre code",
+            InlineCode = "code",
+            CopyRoot = "#this-selector-does-not-exist",
+            Protected = ["pre"],
+            FontScope = "#chat, #composer",
+        },
+        Cdp = new CdpStrategy(),
+    };
+
+    [Fact]
+    public async Task Script_FallsBackToBodyWhenChatContainerSelectorMisses()
+    {
+        // Regression test: an app profile whose ChatContainer selector never
+        // matches the real DOM (wrong/unverified selector) must not leave the
+        // fixer permanently inert. It should fall back to scanning the whole
+        // document so real chat text still gets flipped.
+        using var pw = await PlaywrightFixture.CreateAsync();
+        var page = await pw.NewPageAsync();
+        await page.SetContentAsync(MockHtml);
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions
+        {
+            Content = ScriptBuilder.Build(MismatchedContainerProfile, CopyMode.RtlReadable),
+        });
+        await page.WaitForTimeoutAsync(300);
+
+        var dir = await page.Locator(".user-msg p").First.GetAttributeAsync("dir");
+        Assert.Equal("rtl", dir);
+    }
+
     [Fact]
     public async Task Copy_RtlReadable_OverridesClipboard()
     {

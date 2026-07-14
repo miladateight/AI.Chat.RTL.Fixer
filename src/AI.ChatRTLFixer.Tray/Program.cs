@@ -25,7 +25,9 @@ internal static class Program
         var profiles = new ProfileRegistry();
         var watcher = new ProcessWatcher(profiles, logger);
         watcher.Configure(settings.ReconciliationIntervalSeconds, settings.DeveloperDiagnosticsEnabled, settings.InitialScanDelayMs);
-        var orchestrator = new Orchestrator(logger, profiles, watcher, settingsStore, settings);
+        var portPicker = new PortPicker();
+        var relaunchService = new RelaunchService(logger, portPicker, settings.PortRange.Min, settings.PortRange.Max);
+        var orchestrator = new Orchestrator(logger, profiles, watcher, relaunchService, settingsStore, settings);
 
         ApplicationConfiguration.Initialize();
         Application.Run(new TrayApplicationContext(orchestrator, logger, settingsStore));

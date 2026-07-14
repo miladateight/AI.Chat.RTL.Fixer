@@ -49,3 +49,56 @@ public interface IProcessWatcher : IDisposable
     void Start();
     void Stop();
 }
+
+/// <summary>Picks a random free TCP port on 127.0.0.1 within a range.</summary>
+public interface IPortPicker
+{
+    /// <summary>Returns a free port, or null if none found in the range.</summary>
+    int? PickFreePort(int min, int max);
+}
+
+/// <summary>Outcome of a relaunch attempt.</summary>
+public sealed class RelaunchResult
+{
+    public required bool Success { get; init; }
+    public required bool UserConsented { get; init; }
+    public int? NewProcessId { get; init; }
+    public int? DebugPort { get; init; }
+    public string? Detail { get; init; }
+
+    /// <summary>True when relaunch is unsafe; profile should be Experimental/Unsupported.</summary>
+    public bool Unsafe { get; init; }
+
+    /// <summary>When true, the user chose (or was advised) manual reopen instead of automatic relaunch.</summary>
+    public bool ManualReopen { get; init; }
+
+    /// <summary>The command string shown to the user for manual reopen, when applicable.</summary>
+    public string? ManualCommand { get; init; }
+
+    /// <summary>Whether the new process command line was observed to retain the CDP arguments.</summary>
+    public bool DebugArgsVerified { get; init; }
+}
+
+/// <summary>
+/// Relaunches an Electron app with CDP debug args. NEVER closes or restarts an
+/// app without explicit user consent obtained via <c>consentCallback</c>.
+/// </summary>
+public interface IRelaunchService
+{
+    /// <summary>
+    /// Ask the user (via the provided consent callback) then relaunch. Preserves
+    /// the original command-line arguments as much as safely possible.
+    /// </summary>
+    Task<RelaunchResult> RelaunchWithRtlFixAsync(
+        DetectedApp app,
+        AppProfile profile,
+        Func<RelaunchWarning, Task<bool>> consentCallback,
+        CancellationToken ct);
+}
+
+/// <summary>Warning shown to the user before relaunch.</summary>
+public sealed class RelaunchWarning
+{
+    public required string AppDisplayName { get; init; }
+    public required string Message { get; init; }
+}

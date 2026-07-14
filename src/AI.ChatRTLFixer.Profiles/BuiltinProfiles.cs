@@ -108,9 +108,9 @@ public static class BuiltinProfiles
     /// ZCode desktop client. UI tech to be confirmed.
     /// </summary>
     public static AppProfile ZCode() => ElectronExperimental(
-        "zcode", "ZCode", ["ZCode", "zcode", "Zed", "zed"], "ZCode",
+        "zcode", "ZCode", ["ZCode", "zcode"], "ZCode",
         "CDP compatibility and debug-argument handling are unverified; runtime injection remains Experimental.",
-        ["ZCode"]);
+        ["ZCode"], ["%LOCALAPPDATA%\\Programs\\ZCode"]);
 
     /// <summary>
     /// OpenCode Desktop (@opencode-aidesktop). Electron-based; verified to honor

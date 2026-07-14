@@ -12,6 +12,7 @@ public static class LogCategories
     public const string Font = "font";
     public const string Clipboard = "clipboard";
     public const string Restore = "restore";
+    public const string Relaunch = "relaunch";
     public const string Performance = "perf";
     public const string Security = "security";
 }

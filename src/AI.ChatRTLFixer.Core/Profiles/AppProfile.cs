@@ -97,6 +97,13 @@ public sealed class CdpStrategy
 
     /// <summary>Optional page URL/title pattern to identify the chat page among targets.</summary>
     public string TargetTitlePattern { get; set; } = string.Empty;
+
+    /// <summary>Args appended when relaunching with user consent. ${port} is substituted at runtime.</summary>
+    public string[] LaunchArgs { get; set; } =
+    [
+        "--remote-debugging-port=${port}",
+        "--remote-debugging-address=127.0.0.1",
+    ];
 }
 
 /// <summary>How to clean up when disabled / on exit.</summary>

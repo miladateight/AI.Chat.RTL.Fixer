@@ -11,7 +11,7 @@ public sealed class AppSettings
     /// <summary>Schema version for forward migrations.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     /// <summary>Global kill switch. When false, no app is touched.</summary>
     public bool GlobalEnabled { get; set; } = true;
@@ -38,10 +38,25 @@ public sealed class AppSettings
     /// <summary>Developer diagnostics include paths and ignored candidates in exported reports.</summary>
     public bool DeveloperDiagnosticsEnabled { get; set; }
 
+    /// <summary>
+    /// Master switch for remembered relaunch consent. When true (default),
+    /// an app the user has already explicitly consented to relaunch once
+    /// (see <see cref="AppToggleState.RelaunchConsentGranted"/>) is relaunched
+    /// again automatically on future detections, without re-prompting. This
+    /// never affects the FIRST relaunch of any app: that always requires an
+    /// explicit click through the tray "Relaunch with RTL Fix" menu and its
+    /// confirmation dialog, regardless of this setting. Turning this off makes
+    /// every relaunch, for every app, require a fresh click every time.
+    /// </summary>
+    public bool AutoRelaunchAfterConsent { get; set; } = true;
+
+    public int RelaunchCooldownSeconds { get; set; } = 30;
     public int DiscoveryTimeoutSeconds { get; set; } = 20;
     public int InitialScanDelayMs { get; set; } = 0;
     public int ReconciliationIntervalSeconds { get; set; } = 15;
     public bool ShowUnsupportedApps { get; set; } = true;
+
+    public PortRange PortRange { get; set; } = new();
 
     /// <summary>Last known installed version per app id (informational only).</summary>
     public Dictionary<string, string> LastKnownAppVersions { get; set; } = new();
@@ -55,6 +70,18 @@ public sealed class AppSettings
 public sealed class AppToggleState
 {
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// True once the user has explicitly clicked "yes" on the relaunch
+    /// confirmation dialog for this app at least once. Only ever set by that
+    /// dialog's own Yes button — never inferred or defaulted to true.
+    /// </summary>
+    public bool RelaunchConsentGranted { get; set; }
 }
 
 /// <summary>Inclusive port range for the random free CDP port picker.</summary>
+public sealed class PortRange
+{
+    public int Min { get; set; } = 49152;
+    public int Max { get; set; } = 65535;
+}

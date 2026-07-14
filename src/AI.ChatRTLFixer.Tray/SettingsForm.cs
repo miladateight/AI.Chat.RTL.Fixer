@@ -93,6 +93,22 @@ public sealed class SettingsForm : Form
         };
         general.Controls.Add(startup);
 
+        var autoRelaunch = new CheckBox
+        {
+            Text = "Remember relaunch approval per app (skip asking again once you've said yes)",
+            Checked = settings.AutoRelaunchAfterConsent,
+            AutoSize = true,
+            Margin = new Padding(0, 10, 0, 0),
+            AccessibleName = "Remember relaunch approval per app",
+        };
+        autoRelaunch.CheckedChanged += async (_, _) =>
+        {
+            if (_loading) return;
+            settings.AutoRelaunchAfterConsent = autoRelaunch.Checked;
+            await SaveAsync();
+        };
+        general.Controls.Add(autoRelaunch);
+
         LayoutSection(general);
         root.Controls.Add(general);
 
