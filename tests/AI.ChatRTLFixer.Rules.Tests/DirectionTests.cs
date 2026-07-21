@@ -37,6 +37,10 @@ public class DirectionTests
         // trailing Persian note -> LTR via first-strong + low ratio.
         new object[] { "latin-first-path", "src/pdfsanitizer/app/widgets/ocr_panel.py — OCR mismatch را درست کرد", BlockDirection.Ltr, false },
 
+        // A long Latin product/model name must not make a Persian sentence LTR.
+        // The first word is a label; the remaining natural-language words are RTL.
+        new object[] { "latin-label-then-persian-prose", "OpenAIEnterpriseWorkspaceExperimentalPreview \u0627\u06CC\u0646 \u06CC\u06A9 \u062C\u0645\u0644\u0647 \u0641\u0627\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u0627\u0633\u062A.", BlockDirection.Rtl, false },
+
         // Markdown Persian -> RTL (content-driven).
         new object[] { "md-heading", "# عنوان فارسی\nاین یک بخش فارسی است.", BlockDirection.Rtl, false },
         new object[] { "md-bullet", "- مورد اول فارسی\n- مورد دوم فارسی\n- مورد سوم", BlockDirection.Rtl, false },

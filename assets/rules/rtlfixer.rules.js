@@ -83,6 +83,24 @@
   }
   RtlFixerRules.firstStrongDir = firstStrongDir;
 
+  // A chat message may start with a Latin product name (for example, a long
+  // model or workspace identifier) while the actual sentence that follows is
+  // Persian/Arabic/Hebrew. In that case a raw character ratio can be pulled
+  // below the threshold even though the prose is clearly RTL. Treat exactly
+  // one leading Latin word as a label when at least two RTL words follow it.
+  // This deliberately does not affect English prose containing a single RTL
+  // word, and technical whole-block detection still runs before this rule.
+  function hasRtlProseAfterLeadingLatinWord(text) {
+    if (firstStrongDir(text) !== "ltr") return false;
+    var words = text.match(/[A-Za-z\u00C0-\u024F]+|[\u0590-\u05FF\u0600-\u08FF\uFB1D-\uFEFF]+/g) || [];
+    var latinWords = 0, rtlWords = 0;
+    for (var i = 0; i < words.length; i++) {
+      if (isRtlChar(words[i][0])) rtlWords++;
+      else latinWords++;
+    }
+    return latinWords === 1 && rtlWords >= 2;
+  }
+
   // --- Technical text patterns (ES2018-safe: no lookbehind, no named groups)
   var RE = {
     codeFence: /(^|\n)\s*```/,
@@ -185,7 +203,8 @@
     // begins with an RTL letter (first-strong, like dir="auto"). The second
     // clause catches Persian-first prose whose Latin product names / paths pull
     // the ratio just under the threshold — the common miss on coding assistants.
-    if (ratio < CFG.rtlRatio && firstStrongDir(text) !== "rtl") {
+    if (ratio < CFG.rtlRatio && firstStrongDir(text) !== "rtl" &&
+        !hasRtlProseAfterLeadingLatinWord(text)) {
       return { direction: "ltr", protected: false, align: "left", tokens: tokens, rtlRatio: ratio, length: len };
     }
 

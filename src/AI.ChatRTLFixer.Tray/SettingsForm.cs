@@ -17,14 +17,16 @@ public sealed class SettingsForm : Form
     private readonly Orchestrator _orchestrator;
     private readonly ISettingsStore _settingsStore;
     private readonly SafeLogger _logger;
+    private readonly UpdateChecker _updateChecker;
     private readonly Label _statusValue = new();
     private bool _loading;
 
-    public SettingsForm(Orchestrator orchestrator, ISettingsStore settingsStore, SafeLogger logger)
+    public SettingsForm(Orchestrator orchestrator, ISettingsStore settingsStore, SafeLogger logger, UpdateChecker updateChecker)
     {
         _orchestrator = orchestrator;
         _settingsStore = settingsStore;
         _logger = logger;
+        _updateChecker = updateChecker;
 
         Text = "AI Chat RTL Fixer";
         Font = new Font("Segoe UI", 9F);
@@ -108,6 +110,22 @@ public sealed class SettingsForm : Form
             await SaveAsync();
         };
         general.Controls.Add(autoRelaunch);
+
+        var updateChecks = new CheckBox
+        {
+            Text = "Check GitHub for updates when the app starts",
+            Checked = settings.CheckForUpdatesOnStartup,
+            AutoSize = true,
+            Margin = new Padding(0, 10, 0, 0),
+            AccessibleName = "Check for updates on startup",
+        };
+        updateChecks.CheckedChanged += async (_, _) =>
+        {
+            if (_loading) return;
+            settings.CheckForUpdatesOnStartup = updateChecks.Checked;
+            await SaveAsync();
+        };
+        general.Controls.Add(updateChecks);
 
         LayoutSection(general);
         root.Controls.Add(general);
@@ -224,8 +242,11 @@ public sealed class SettingsForm : Form
             await SaveAsync();
             UpdateStatus();
         };
+        var checkUpdates = new Button { Text = "Check for updates", AutoSize = true, AccessibleName = "Check for updates" };
+        checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
         var close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.OK, AccessibleName = "Close settings" };
         footer.Controls.Add(restore);
+        footer.Controls.Add(checkUpdates);
         footer.Controls.Add(close);
         root.Controls.Add(footer);
 
@@ -279,6 +300,23 @@ public sealed class SettingsForm : Form
     }
 
     private async Task SaveAsync() => await _settingsStore.SaveAsync(_orchestrator.Settings, CancellationToken.None);
+
+    private async Task CheckForUpdatesAsync()
+    {
+        var result = await _updateChecker.CheckAsync(CancellationToken.None);
+        if (result.IsUpdateAvailable)
+        {
+            var open = MessageBox.Show(
+                $"Version {result.LatestVersion} is available. Open the GitHub release page?",
+                Constants.ProductName, MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (open == DialogResult.Yes && result.ReleasePage is not null)
+                UpdateChecker.OpenReleasePage(result.ReleasePage);
+            return;
+        }
+
+        MessageBox.Show(result.Message, Constants.ProductName,
+            MessageBoxButtons.OK, result.Succeeded ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
 
     private void UpdateStatus()
     {

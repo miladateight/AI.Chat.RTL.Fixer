@@ -7,8 +7,9 @@ A free, open-source Windows tray tool that improves right-to-left (RTL) text
 rendering inside AI desktop chat applications. It focuses only on the chat
 area and keeps code, commands, paths and English text left-to-right.
 
-No telemetry. No analytics. No external network calls. It only talks to
-debug-enabled target apps over local loopback (127.0.0.1).
+No telemetry or analytics. Target apps are contacted only over local loopback
+(127.0.0.1). The optional update check contacts GitHub Releases only and sends
+no chat, account, device or usage data.
 
 Note on status: detecting a supported app is not the same as a verified fix.
 App profiles stay Experimental until verified on a real installation. See

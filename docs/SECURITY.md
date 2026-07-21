@@ -1,25 +1,25 @@
-# Security
+# Security and privacy
 
-## CDP and loopback-only communication
+## Target-app communication
 
-AI Chat RTL Fixer communicates with supported Electron apps using the **Chrome DevTools Protocol (CDP)** over **local loopback (127.0.0.1) only**.
+AI Chat RTL Fixer communicates with supported Electron target apps only through Chrome DevTools Protocol (CDP) endpoints on local loopback (`127.0.0.1` / `localhost`).
 
-- The tool never opens a debug port or changes another process. It only considers a port explicitly advertised in a matched process command line.
-- The adapter **verifies** the discovered WebSocket URL is loopback before connecting. If the endpoint is not bound to `127.0.0.1` / `localhost`, attachment is refused and the profile is not marked Stable.
-- No external network calls are made. A loopback-only HTTP proxy guard is used in the discovery client as defence in depth.
+- The adapter rejects a discovered WebSocket URL unless its host is loopback.
+- Relaunch arguments always bind the debugging endpoint to `127.0.0.1`.
+- The first target-app relaunch requires explicit user consent and warns about unsaved work.
+- The tool does not expose a network listener or connect to arbitrary remote CDP endpoints.
 
-## No external network calls
+## Update checks
 
-No telemetry, analytics, cloud, account access or API keys. The tool does not send clipboard data or chat content anywhere. All processing is local.
+When enabled, the update check sends a single HTTPS `GET` request to the project's public GitHub Releases API endpoint. It reads only the release tag and GitHub release page URL.
 
-## No process lifecycle control
+- No automatic download or installation occurs.
+- The release page must be an HTTPS URL on `github.com` before the app opens it.
+- No chat content, clipboard content, account identifier, device identifier, diagnostics or usage data is attached to the request.
+- Users can disable update checks in Settings.
 
-The tool never closes, kills, launches or restarts a target application. A process without an existing local endpoint is reported as waiting and remains untouched.
+## Local data
 
-## Runtime-only
-
-No binary patching. No permanent modification of target app files. All changes are in-memory DOM modifications that vanish when the target app is restarted normally or when AI Chat RTL Fixer is disabled/quits.
-
-## Risks
-
-Running any application with a remote debugging port means another local process could potentially access that page's content while the port is open. AI Chat RTL Fixer refuses non-loopback HTTP and WebSocket addresses, but users remain responsible for how the target application endpoint was enabled.
+- Settings and metadata-only logs are stored under `%AppData%\AIChatRTLFixer\`.
+- Chat history and clipboard content are never stored.
+- Telemetry, analytics, cloud accounts and API keys are not used.

@@ -15,4 +15,5 @@ public static class LogCategories
     public const string Relaunch = "relaunch";
     public const string Performance = "perf";
     public const string Security = "security";
+    public const string Update = "update";
 }

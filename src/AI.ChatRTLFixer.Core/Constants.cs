@@ -10,7 +10,7 @@ public static class Constants
     public const string ProductName = "AI Chat RTL Fixer";
 
     /// <summary>Product version. Keep in sync with Directory.Build.props and the installer.</summary>
-    public const string AppVersion = "0.5.0";
+    public const string AppVersion = "1.0.0";
 
     /// <summary>Folder name under %AppData% used for settings and logs.</summary>
     public const string AppDataFolder = "AIChatRTLFixer";
@@ -26,8 +26,12 @@ public static class Constants
 
     /// <summary>No-telemetry statement shown in the UI and README.</summary>
     public const string NoTelemetryStatement =
-        "No telemetry. No analytics. No external network calls. Only local loopback " +
-        "communication with debug-enabled target apps.";
+        "No telemetry or analytics. Optional update checks contact only GitHub; " +
+        "target-app communication stays on local loopback.";
+
+    /// <summary>Official GitHub Releases API endpoint used only for update checks.</summary>
+    public const string GitHubLatestReleaseApi =
+        "https://api.github.com/repos/miladateight/AI.Chat.RTL.Fixer/releases/latest";
 
     /// <summary>HTML id of the injected style element that carries direction CSS.</summary>
     public const string CssStyleId = "rtlfixer-css";

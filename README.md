@@ -4,129 +4,86 @@
 
 # AI Chat RTL Fixer
 
-**Fixes right-to-left (RTL) text rendering inside AI desktop chat apps — chat surface only, code and commands stay LTR.**
+**RTL text for desktop AI chats — chat text is readable; code, commands, paths and English stay LTR.**
 
-[English](README.md) - [فارسی](README.fa.md)
+[English](README.md) · [فارسی](README.fa.md)
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0a1622)](#system-requirements)
-[![Version](https://img.shields.io/badge/version-0.5.0--pre-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.5.0)
+[![Version](https://img.shields.io/badge/version-1.0.0-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.0)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 
 </div>
 
----
-
-AI Chat RTL Fixer is a free and open-source Windows tray tool that improves RTL text rendering inside AI desktop chat applications. It is built for Persian, Arabic, Hebrew, Urdu and other RTL-language users who use graphical Windows AI chat apps (Electron / WebView2) and want chat messages to read right-to-left — while code blocks, file paths, URLs, commands and English text stay left-to-right and copy-safe.
-
-> **Scope:** the chat surface only. The sidebar, title bar, menus, settings, file tree, code editor and terminal panels are never modified. Everything is **runtime-only** — closing or disabling the tool removes all changes, and restarting the target app normally always returns it to a clean state.
-
-> ⚠️ **v0.5.0 is a pre-release / framework build.** No app profile is marked *Stable* yet. Detecting an app is **not** the same as a verified fix — see [Supported apps](#supported-apps).
+AI Chat RTL Fixer is a lightweight Windows tray app for Persian, Arabic, Hebrew, Urdu and other RTL-language users of graphical AI chat applications. It changes only the chat surface; sidebars, menus, settings, file trees, editors and terminals are never modified. All target-app changes are runtime-only and are removed when the fixer is disabled or exits.
 
 ## Download
 
-- Installer: [AIChatRTLFixerSetup-0.5.0.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.5.0/AIChatRTLFixerSetup-0.5.0.exe)
-- SHA256: [AIChatRTLFixerSetup-0.5.0.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v0.5.0/AIChatRTLFixerSetup-0.5.0.exe.sha256)
-- All releases: [GitHub Releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
+- Installer: [AIChatRTLFixerSetup-1.0.0.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.0/AIChatRTLFixerSetup-1.0.0.exe)
+- SHA-256: [AIChatRTLFixerSetup-1.0.0.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.0/AIChatRTLFixerSetup-1.0.0.exe.sha256)
+- [All releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
 
-Free and open-source. No account, no license key, no network access required.
+## What 1.0.0 does
 
-## Highlights
-
-- Lightweight **system-tray** app — no heavy window, right-click menu, double-click for Settings.
-- Fixes **RTL rendering** for Persian, Arabic, Hebrew and Urdu chat messages.
-- Keeps **code blocks, paths, commands, URLs and English text LTR** and copy-safe.
-- Bundled **Vazirmatn** font applied to the chat surface only.
-- **Chat surface only** — sidebar, menus, editor and terminal are untouched.
-- **Runtime-only**: disable or quit and every change is removed.
-- **Privacy-first**: no telemetry, no analytics, no external network calls.
-- Optional, per-app **"Start with Windows"** controlled from the app's own Settings.
-- Ships as a **Windows installer** plus two **portable** builds.
+- Starts quietly in the system tray; the installer selects **Start with Windows** by default.
+- Detects supported desktop apps at startup and when they open.
+- After one explicit per-app approval, remembered apps are automatically relaunched with a loopback-only CDP endpoint and fixed without another prompt.
+- Reattaches after page navigation or a CDP disconnect.
+- Keeps code blocks, URLs, commands, file paths and English text left-to-right and copy-safe.
+- Checks GitHub Releases at startup (or on demand from the tray). It never installs an update automatically; it opens the official release page only after confirmation.
 
 ## How it works
 
-For Electron-based apps, AI Chat RTL Fixer attaches only to an **already-available Chrome DevTools Protocol (CDP) endpoint** over local loopback (`127.0.0.1`). It never closes, launches or restarts a target app. Once an endpoint is detected, scoped CSS, the bundled Vazirmatn font and the runtime classifier are applied immediately and registered for future page navigations. If an app was started without a local endpoint, it remains untouched and the tray waits safely.
+For Electron desktop apps, the fixer connects only to a Chrome DevTools Protocol endpoint on local loopback (`127.0.0.1`). The first time an app needs such an endpoint, the tray asks for explicit permission to close and reopen that app with loopback-only debugging arguments. The approval can be remembered per app, so later launches are handled automatically.
 
-## Supported apps
+There is no safe universal way to modify every Windows application or to inject into an app already running without a CDP endpoint. WebView2, Tauri, Qt, WPF and native apps require dedicated, verified adapters.
 
-| App | UI technology | Status | Notes |
-|---|---|---|---|
-| Claude Desktop | Electron | Planned | Selectors are placeholders pending verification on a real install. |
-| ChatGPT Desktop | Electron | Planned | Selectors are placeholders pending verification on a real install. |
-| Codex Desktop | Unknown | Unsupported | Not detected/tested yet. |
-| ZCode | Unknown | Unsupported | Not detected/tested yet. |
-| Others (LM Studio, AnythingLLM, ...) | Unknown | Unsupported | UI tech must be confirmed before a profile is written. |
+## Included desktop profiles
 
-**Status meanings:** *Stable* = verified against a real installed app version · *Experimental* = works but may break after app updates · *Planned* = detected/known, no safe injection yet · *Unsupported* = no safe method found yet.
+| App | Runtime status | Notes |
+|---|---|---|
+| ChatGPT Desktop | Experimental | Electron profile with app-specific selectors and automatic reattach. |
+| Codex Desktop | Experimental | Desktop GUI only; Codex CLI is intentionally excluded. |
+| Claude Desktop | Experimental | Electron profile with consent-gated relaunch. |
+| ZCode | Experimental | Electron profile with generic chat fallback. |
+| Other Electron desktop AI apps | Experimental | OpenCode, OpenClaw, Hermes, LM Studio, AnythingLLM, Jan, Cherry Studio, Msty and GitHub Copilot profiles are included. |
 
-> **No profile is marked Stable in v0.5.0.** Detection does not mean support.
+Experimental means a profile must still be verified against the installed target-app version; app updates can change their DOM. Claude Code and Codex CLI are command-line tools rather than desktop chat surfaces, so they are intentionally not injected into.
 
-## Privacy & security
+## Privacy and safety
 
-- No telemetry, no analytics, no cloud service, no account, no API keys.
-- **No external network calls** — only local loopback (`127.0.0.1`) to debug-enabled target apps.
-- The tool never opens a port. It accepts only an endpoint already advertised by a matched process and verifies that every HTTP/WebSocket address is loopback-only before connecting.
-- Chat history and clipboard content are never stored. Logs contain **safe metadata only — no chat text**.
-- Settings and logs live under `%AppData%\AIChatRTLFixer\`.
+- No telemetry, analytics, cloud service, account access or API keys.
+- Target-app communication is restricted to verified loopback CDP endpoints.
+- Update checks are enabled by default but can be disabled in Settings. They make one HTTPS request to GitHub Releases only and send no chat, account, device, diagnostic or usage data.
+- The initial relaunch always needs explicit confirmation because it can close an app with unsaved work.
+- Chat history and clipboard content are not stored; logs contain safe metadata only.
 
-## Install & run
+## Install and run
 
-**Installer (recommended):** run `AIChatRTLFixerSetup-0.5.0.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, adds a Start Menu shortcut (desktop shortcut optional), and a standard uninstaller. It does **not** force "Start with Windows". Uninstalling removes the installed files and — only if you confirm — your settings/logs.
+Run `AIChatRTLFixerSetup-1.0.0.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, creates a Start Menu shortcut and a standard uninstaller. "Start with Windows" is selected in setup and remains controllable in Settings. Portable framework-dependent and self-contained `win-x64` builds are also produced under `dist\`.
 
-**Portable (no install):** run `AI.ChatRTLFixer.Tray.exe` from either build:
+## Build and package from source
 
-- **Self-contained (win-x64)** — no prerequisites (bundles .NET 8).
-- **Framework-dependent** — small; needs the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
-
-The tray icon appears in the notification area. Double-click it to open Settings; right-click for the menu.
-
-## System requirements
-
-- Windows 10 or Windows 11, 64-bit.
-- For the framework-dependent build only: .NET 8 Desktop Runtime.
-
-## Build & package from source
-
-Requirements: **.NET 8 SDK**, and **Inno Setup 6** for the installer (a compiler can be placed in `.tools\InnoSetup\`, or install it from <https://jrsoftware.org/isdl.php>).
+Requires .NET 8 SDK and Inno Setup 6.
 
 ```powershell
-# build + test
-dotnet build AI.ChatRTLFixer.sln -c Release
-dotnet test  AI.ChatRTLFixer.sln -c Release
-
-# one command: build, test, branding, both portable builds, installer
+# Full validation and package build
 powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
+
+# Package without tests
+powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1 -SkipTests
 ```
 
-Outputs are written under `dist\`:
+Outputs:
 
 ```text
 dist\portable-framework-dependent\AI.ChatRTLFixer.Tray.exe
 dist\portable-self-contained-win-x64\AI.ChatRTLFixer.Tray.exe
-dist\installer\AIChatRTLFixerSetup-0.5.0.exe
+dist\installer\AIChatRTLFixerSetup-1.0.0.exe
+dist\installer\AIChatRTLFixerSetup-1.0.0.exe.sha256
 ```
 
-See [docs/RELEASE.md](docs/RELEASE.md) for details, and [docs/README.md](docs/README.md) for full documentation.
-
-The current AST-only project map is available as an [interactive graph](graphify-out/graph.html) and a [structural report](graphify-out/GRAPH_REPORT.md).
-
-## Validation status (v0.5.0)
-
-- `dotnet build` (Release): pass — 0 warnings, 0 errors
-- `dotnet test`: pass — 71/71 (Core 8, Rules 42, Integration 21 incl. Playwright)
-- Publish framework-dependent: pass
-- Publish self-contained win-x64: pass
-- Inno Setup installer compile: pass
-- SHA256 generation: pass
-
-## Font license
-
-Bundles **Vazirmatn** (Regular) under the **SIL Open Font License 1.1**. The project code is **MIT** licensed. The font is applied only to the chat surface, never to the rest of the app UI.
-
-## Contact
-
-- Telegram: [@MiladAteight](https://t.me/MiladAteight)
-- Email: ateight088@gmail.com
+See [release notes](RELEASE_NOTES_v1.0.0.md) and [packaging documentation](docs/RELEASE.md).
 
 ## License
 
-Copyright (c) 2026 Milad AT8. AI Chat RTL Fixer is released under the **MIT License** — see [LICENSE](LICENSE).
+The app is MIT licensed. It bundles Vazirmatn under the SIL Open Font License 1.1.

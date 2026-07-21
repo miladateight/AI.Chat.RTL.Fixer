@@ -21,6 +21,9 @@ internal static class Program
 
         var settingsStore = new SettingsStore(logger);
         var settings = settingsStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+        // The installer can create this entry before the first application run.
+        // Read Windows as the source of truth so the Settings checkbox is accurate.
+        settings.StartWithWindows = StartupManager.IsEnabled();
 
         var profiles = new ProfileRegistry();
         var watcher = new ProcessWatcher(profiles, logger);
@@ -28,8 +31,9 @@ internal static class Program
         var portPicker = new PortPicker();
         var relaunchService = new RelaunchService(logger, portPicker, settings.PortRange.Min, settings.PortRange.Max);
         var orchestrator = new Orchestrator(logger, profiles, watcher, relaunchService, settingsStore, settings);
+        var updateChecker = new UpdateChecker(logger);
 
         ApplicationConfiguration.Initialize();
-        Application.Run(new TrayApplicationContext(orchestrator, logger, settingsStore));
+        Application.Run(new TrayApplicationContext(orchestrator, logger, settingsStore, updateChecker));
     }
 }

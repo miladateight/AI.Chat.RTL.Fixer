@@ -11,7 +11,7 @@ public sealed class AppSettings
     /// <summary>Schema version for forward migrations.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     /// <summary>Global kill switch. When false, no app is touched.</summary>
     public bool GlobalEnabled { get; set; } = true;
@@ -27,6 +27,12 @@ public sealed class AppSettings
     public CopyMode CopyMode { get; set; } = CopyMode.RtlReadable;
 
     public bool StartWithWindows { get; set; }
+
+    /// <summary>
+    /// Checks the project's public GitHub Releases endpoint when the tray app
+    /// starts. The request contains no account, device, chat or usage data.
+    /// </summary>
+    public bool CheckForUpdatesOnStartup { get; set; } = true;
 
     /// <summary>
     /// Opt-in developer mode. Only when true may short (truncated) text samples

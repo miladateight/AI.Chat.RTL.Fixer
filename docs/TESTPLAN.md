@@ -1,150 +1,43 @@
-# Test Plan — AI Chat RTL Fixer v0.3
+# Test plan — 1.0.0
 
-## Unit tests
+Run this checklist before publishing a GitHub release. Do not mark an app profile Stable until its real installed version has passed the app-specific checks.
 
-### Rules (via Jint, running the canonical rtlfixer.rules.js)
+## Automated validation
 
-- [x] Persian-only message -> RTL
-- [x] Arabic-only message -> RTL
-- [x] Hebrew-only message -> RTL
-- [x] Urdu-only message -> RTL
-- [x] English-only message -> LTR
-- [x] Mixed Persian + English -> RTL
-- [x] Persian with numbers -> RTL
-- [x] Persian with Windows path -> RTL block, winPath token detected
-- [x] Persian with Linux path -> RTL block, linuxPath token detected
-- [x] Persian with URL -> RTL block, url token detected
-- [x] Persian with inline code -> RTL block
-- [x] Persian with command -> RTL block
-- [x] Markdown heading (Persian) -> RTL
-- [x] Markdown bullet list (Persian) -> RTL
-- [x] Markdown numbered list (Persian) -> RTL
-- [x] Markdown blockquote (Persian) -> RTL
-- [x] Code block (fenced) -> Protected + LTR
-- [x] Code block with Persian comment -> Protected + LTR
-- [x] JSON block -> Protected + LTR
-- [x] YAML block -> Protected + LTR
-- [x] XML block -> Protected + LTR
-- [x] TOML block -> Protected + LTR
-- [x] INI block -> Protected + LTR
-- [x] env block -> Protected + LTR
-- [x] Stack trace -> Protected + LTR
-- [x] Diff block -> Protected + LTR
-- [x] Log block -> Protected + LTR
-- [x] Node inside protected selector -> always Protected + LTR
-- [x] Version number token detected
-- [x] URL token detected
-- [x] Windows path token detected
-- [x] Copy: Original passes through
-- [x] Copy: RtlReadable adds RLM around RTL text
-- [x] Copy: RtlReadableNoMarkers keeps text clean
-- [x] Copy: code block plain text has no bidi markers
-- [x] Copy: path plain text has no bidi markers
-- [x] Copy: URL plain text has no bidi markers
-- [x] Copy: HTML RTL uses isolate span
-- [x] Copy: HTML escapes special chars
+```powershell
+dotnet restore AI.ChatRTLFixer.sln
+dotnet build AI.ChatRTLFixer.sln -c Release --no-restore
+dotnet test AI.ChatRTLFixer.sln -c Release --no-build
+```
 
-### Core
+- Rule engine: RTL natural language; LTR English; protected code, URLs, commands, paths and clipboard modes.
+- Integration: injected script applies to existing content, streaming content, replaced chat/composer roots and restores cleanly.
+- Core: process/profile matching, loopback validation, settings migration and runtime state transitions.
 
-- [x] SafeLogger.Redact removes all content, keeps metadata
-- [x] ProfileRegistry matches known process
-- [x] ProfileRegistry does not match unknown process
-- [x] No builtin profile is Stable without a verified TestedAppVersion
-- [x] Profile matching by executable path when the process name differs
-- [x] Profile matching by product name / file-description signal
-- [x] Runtime-control defaults keep reconciliation bounded and low frequency
+## Manual runtime checks
 
-### Runtime orchestration manual checks
+- Enable Start with Windows, sign out/restart and confirm the tray app starts once without showing a main window.
+- Start each supported desktop app both before and after the fixer. Confirm discovery and the status shown in the tray.
+- On first use, verify relaunch requires an explicit confirmation and warns about unsaved work.
+- Approve a relaunch once, reopen the same app and verify remembered approval applies the fix without another prompt.
+- Verify CDP is bound only to `127.0.0.1` and that a non-loopback WebSocket target is rejected.
+- Verify the fixer survives page navigation, chat streaming and a CDP reconnect.
+- Verify the chat area becomes RTL as appropriate while sidebars, menus, editors, terminals and code blocks remain untouched/LTR.
+- Disable the global switch and exit the app; confirm runtime changes are restored.
 
-- [ ] Startup snapshot finds apps already open before the tray app starts.
-- [ ] An unchanged reconciliation snapshot emits no duplicate state transition.
-- [ ] Global disabled still displays detected apps as disabled and does not attach.
-- [ ] A no-CDP app shows **waiting for local endpoint** once, without log spam.
-- [ ] The tool never closes, launches or restarts a target app.
-- [ ] CDP diagnostics distinguish port closed, timeout, invalid JSON, no page target,
-  missing websocket URL and target/profile mismatch.
-- [ ] Export Detection Report contains no chat content and only includes executable paths
-  when selected by the user.
+## Update checks
 
-## Integration tests (Playwright, mock DOM in real headless Chromium)
+- With update checks enabled, use the tray menu and verify only the official GitHub Releases API is contacted.
+- Confirm an available update offers the official GitHub release page and does not download or run an installer automatically.
+- Disable update checks in Settings, restart the app and confirm no GitHub request is made.
 
-These run the REAL script built by ScriptBuilder (which embeds the canonical rtlfixer.rules.js) against a mock chat surface:
+## Packaging checks
 
-- [x] Script applies RTL to Persian messages
-- [x] Script leaves code blocks LTR
-- [x] Script does not touch the sidebar
-- [x] Script processes new messages via MutationObserver (simulated streaming)
-- [x] Script reclassifies character-data updates during streaming
-- [x] Script tracks a replaced composer
-- [x] Script survives replacement of the complete chat root
-- [x] Restore removes all data-rtlfixer attributes
-- [x] Copy interceptor overrides clipboard (RtlReadable adds RLM)
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
+```
 
-## Manual verification checklist (v0.3)
-
-To be run against a real installed app once a profile is marked Stable:
-
-- [ ] Process detection finds the target app.
-- [ ] Tray shows the app with the correct attachment/waiting status.
-- [ ] No target process is closed, launched or restarted by the tool.
-- [ ] CDP connect succeeds on 127.0.0.1; bind verified loopback.
-- [ ] Style + font + script injected.
-- [ ] Loaded chat history is processed on attach.
-- [ ] Streaming responses are processed (debounced, no heavy flicker).
-- [ ] Composer direction flips while typing RTL.
-- [ ] Persian messages: RTL, right-aligned, with Vazirmatn font.
-- [ ] Arabic/Hebrew/Urdu messages render correctly.
-- [ ] English-only messages stay LTR.
-- [ ] Code blocks stay LTR and copy verbatim.
-- [ ] Paths and commands are not visually broken.
-- [ ] Copy behavior matches selected copy mode.
-- [ ] Disable removes all runtime changes (no `data-rtlfixer`, no `#rtlfixer-css`).
-- [ ] Exit cleans up.
-- [ ] Logs contain no chat text (verify redaction).
-- [ ] No sidebar/title/menu/settings changes observed.
-- [ ] App does not crash.
-- [ ] CPU usage stays within budget (idle ~0%, streaming < 5% one core then < 1%).
-- [ ] No external network calls (verify via netstat: only 127.0.0.1).
-- [ ] Restarting the target app normally returns it to a clean state.
-
-## Installer & packaging (v0.3)
-
-Automated in this environment (via `scripts\build-all.ps1`):
-
-- [x] `dotnet build AI.ChatRTLFixer.sln` succeeds (0 warnings, 0 errors).
-- [x] `dotnet test AI.ChatRTLFixer.sln` — 69/69 pass (Core 8, Rules 42, Integration 19 incl. Playwright).
-- [x] `scripts\publish.ps1` produces both portable outputs under `dist\`.
-- [ ] `scripts\package-installer.ps1` compiles `dist\installer\AIChatRTLFixerSetup-0.5.0.exe` (Inno Setup) + `.sha256`.
-- [ ] Published exe file properties: ProductVersion `0.5.0`, FileVersion `0.5.0.0`, Company `Milad AT8`, Product `AI Chat RTL Fixer`.
-- [x] Self-contained exe launches, stays responsive, creates `%AppData%\AIChatRTLFixer\{settings.json, logs\rtlfixer.log}`.
-
-Manual, on a real machine (needs admin for Program Files; not run in the build
-environment because the session was non-elevated):
-
-- [ ] Run `AIChatRTLFixerSetup-0.5.0.exe`; UAC prompt appears (Program Files install).
-- [ ] Installs to `C:\Program Files\AI Chat RTL Fixer`; exe/shortcut show the app icon.
-- [ ] Start Menu shortcut **AI Chat RTL Fixer** launches the tray app.
-- [ ] Desktop shortcut is created only when its (unchecked) task is selected.
-- [ ] "Launch after install" is optional (unchecked) and works when selected.
-- [ ] Re-running setup while the app is open closes it safely (no forced kill of other apps).
-- [ ] Installer does **not** enable "Start with Windows" (verify HKCU\...\Run has no entry).
-- [ ] Uninstall from *Settings → Apps* removes installed files under Program Files.
-- [ ] Uninstall asks (defaulting to No) before deleting `%AppData%\AIChatRTLFixer`; declining keeps settings/logs.
-- [ ] After uninstall, the HKCU Run entry (if the user had enabled startup) is removed.
-
-## Acceptance criteria
-
-- No change visible in sidebar or any UI outside the chat surface.
-- Persian chat messages are readable, RTL, right-aligned, with the correct font.
-- Arabic/Hebrew/Urdu messages also render correctly.
-- English-only chat messages remain LTR.
-- Code blocks remain LTR and copy-safe.
-- Paths and commands are not visually broken.
-- Loaded history is fixed.
-- New and streaming messages are fixed without heavy flicker.
-- Disable removes runtime changes (DOM verified).
-- Logs contain no chat text (redaction verified).
-- App does not crash.
-- CPU stays within budget.
-- No external network calls (netstat verified).
-- Normal app restart returns to a fully clean state (runtime-only proven).
+- Verify both portable executables start and show the correct `1.0.0` version.
+- Verify `dist\installer\AIChatRTLFixerSetup-1.0.0.exe` and its `.sha256` file exist.
+- Install over the preceding version, preserving user settings; then test uninstall and the optional deletion prompt for `%AppData%\AIChatRTLFixer`.
+- Confirm setup offers Start with Windows as selected by default and Settings accurately reflects the resulting Windows Run entry.

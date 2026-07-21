@@ -75,7 +75,7 @@ New-Item -ItemType Directory -Force -Path $installerOut | Out-Null
 & $iscc ".\installer\AI.ChatRTLFixer.iss"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$installer = Join-Path $installerOut "AIChatRTLFixerSetup-0.5.0.exe"
+$installer = Join-Path $installerOut "AIChatRTLFixerSetup-1.0.0.exe"
 if (Test-Path $installer) {
     $hash = Get-FileHash -Algorithm SHA256 $installer
     $hashLine = "{0}  {1}" -f $hash.Hash.ToLowerInvariant(), (Split-Path -Leaf $installer)

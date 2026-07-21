@@ -15,15 +15,17 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly Orchestrator _orchestrator;
     private readonly SafeLogger _logger;
     private readonly ISettingsStore _settingsStore;
+    private readonly UpdateChecker _updateChecker;
     private readonly NotifyIcon _notify;
     private readonly ToolStripMenuItem _globalToggleItem;
     private readonly SynchronizationContext _uiContext;
 
-    public TrayApplicationContext(Orchestrator orchestrator, SafeLogger logger, ISettingsStore settingsStore)
+    public TrayApplicationContext(Orchestrator orchestrator, SafeLogger logger, ISettingsStore settingsStore, UpdateChecker updateChecker)
     {
         _orchestrator = orchestrator;
         _logger = logger;
         _settingsStore = settingsStore;
+        _updateChecker = updateChecker;
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _orchestrator.StateChanged += (_, _) =>
         {
@@ -43,6 +45,8 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _orchestrator.Start();
         RebuildMenu();
+        if (_orchestrator.Settings.CheckForUpdatesOnStartup)
+            _ = CheckForUpdatesAsync(interactive: false);
     }
 
     /// <summary>
@@ -106,6 +110,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(Mi("Settings...", OpenSettings));
         menu.Items.Add(Mi("Open logs", OpenLogs));
         menu.Items.Add(Mi("Export Detection Report", ExportDetectionReportAsync));
+        menu.Items.Add(Mi("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
         menu.Items.Add(Mi("Reset runtime changes", async () => await _orchestrator.DisableAllAsync()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Mi("About", ShowAbout));
@@ -125,7 +130,39 @@ public sealed class TrayApplicationContext : ApplicationContext
         RebuildMenu();
     }
 
-    private void OpenSettings() => new SettingsForm(_orchestrator, _settingsStore, _logger).Show();
+    private void OpenSettings() => new SettingsForm(_orchestrator, _settingsStore, _logger, _updateChecker).Show();
+
+    private async Task CheckForUpdatesAsync(bool interactive)
+    {
+        var result = await _updateChecker.CheckAsync(CancellationToken.None);
+        _uiContext.Post(_ => PresentUpdateResult(result, interactive), null);
+    }
+
+    private void PresentUpdateResult(UpdateCheckResult result, bool interactive)
+    {
+        if (result.IsUpdateAvailable)
+        {
+            if (interactive)
+            {
+                var open = MessageBox.Show(
+                    $"Version {result.LatestVersion} is available. Open the GitHub release page?",
+                    Constants.ProductName, MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (open == DialogResult.Yes && result.ReleasePage is not null)
+                    UpdateChecker.OpenReleasePage(result.ReleasePage);
+            }
+            else
+            {
+                _notify.ShowBalloonTip(5000, Constants.ProductName,
+                    $"Version {result.LatestVersion} is available. Use 'Check for updates' in the tray menu to open it.",
+                    ToolTipIcon.Info);
+            }
+            return;
+        }
+
+        if (interactive)
+            MessageBox.Show(result.Message, Constants.ProductName, MessageBoxButtons.OK,
+                result.Succeeded ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
 
     private async Task RelaunchAppAsync(DetectedApp app)
     {
@@ -218,8 +255,8 @@ public sealed class TrayApplicationContext : ApplicationContext
             "rendering inside AI desktop chat applications. It focuses only on " +
             "the chat area and keeps code, commands, paths and English text " +
             "left-to-right.\n\n" +
-            "No telemetry. No external network calls. Only local loopback " +
-            "communication with debug-enabled target apps.\n\n" +
+            "No telemetry or analytics. Optional update checks contact only GitHub; " +
+            "target-app communication stays on local loopback.\n\n" +
             "GitHub: " + Constants.GitHubLink,
             "About " + Constants.ProductName,
             MessageBoxButtons.OK, MessageBoxIcon.Information);
