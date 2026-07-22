@@ -32,9 +32,19 @@ public sealed class RelaunchService : IRelaunchService
     public async Task<RelaunchResult> RelaunchWithRtlFixAsync(
         DetectedApp app,
         AppProfile profile,
+        bool allowBrowserTargets,
         Func<RelaunchWarning, Task<bool>> consentCallback,
         CancellationToken ct)
     {
+        // Defence in depth: ProcessWatcher excludes browsers by default, but
+        // relaunch independently enforces the same explicit opt-in.
+        if (!allowBrowserTargets && BrowserGuard.IsBrowser(app.ProcessName, app.ExecutablePath))
+        {
+            _logger.Log(LogLevel.Warning, LogCategories.Security, "browser-relaunch-blocked",
+                ("name", app.ProcessName));
+            return new RelaunchResult { Success = false, UserConsented = false, Detail = "browser-relaunch-blocked", Unsafe = true };
+        }
+
         if (profile.Cdp is null)
             return new RelaunchResult { Success = false, UserConsented = false, Detail = "profile has no CDP strategy", Unsafe = true };
 

@@ -1,4 +1,4 @@
-# Test plan — 1.0.0
+# Test plan — 1.0.1
 
 Run this checklist before publishing a GitHub release. Do not mark an app profile Stable until its real installed version has passed the app-specific checks.
 
@@ -37,7 +37,7 @@ dotnet test AI.ChatRTLFixer.sln -c Release --no-build
 powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 ```
 
-- Verify both portable executables start and show the correct `1.0.0` version.
-- Verify `dist\installer\AIChatRTLFixerSetup-1.0.0.exe` and its `.sha256` file exist.
+- Verify both portable executables start and show the correct `1.0.1` version.
+- Verify `dist\installer\AIChatRTLFixerSetup-1.0.1.exe` and its `.sha256` file exist.
 - Install over the preceding version, preserving user settings; then test uninstall and the optional deletion prompt for `%AppData%\AIChatRTLFixer`.
 - Confirm setup offers Start with Windows as selected by default and Settings accurately reflects the resulting Windows Run entry.

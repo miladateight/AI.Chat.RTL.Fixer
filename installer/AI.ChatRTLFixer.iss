@@ -7,7 +7,7 @@
 #define MyOutputBaseFilename "AIChatRTLFixerSetup"
 #define MySourceDir "..\dist\portable-self-contained-win-x64"
 #define MyAppId "{{35E1F24F-FC8C-4E84-ABD9-48E9A34A0BA4}"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "Milad AT8"
 #define MyAppURL "https://github.com/miladateight/AI.Chat.RTL.Fixer"
 

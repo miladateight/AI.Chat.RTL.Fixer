@@ -26,6 +26,7 @@ public sealed class ProcessWatcher : IProcessWatcher
     private int _intervalMs = 15000;
     private int _initialDelayMs;
     private bool _developerDiagnostics;
+    private volatile bool _browserTargetsEnabled;
     private int _polling;
     private bool _initialScanComplete;
 
@@ -38,11 +39,31 @@ public sealed class ProcessWatcher : IProcessWatcher
     public event EventHandler<DetectedApp>? AppChanged;
     public event EventHandler<DetectedApp>? AppExited;
 
-    public void Configure(int reconciliationIntervalSeconds, bool developerDiagnostics, int initialScanDelayMs = 0)
+    public void Configure(int reconciliationIntervalSeconds, bool developerDiagnostics, int initialScanDelayMs = 0, bool browserTargetsEnabled = false)
     {
         _intervalMs = Math.Clamp(reconciliationIntervalSeconds, 5, 60) * 1000;
         _developerDiagnostics = developerDiagnostics;
         _initialDelayMs = Math.Clamp(initialScanDelayMs, 0, 10000);
+        _browserTargetsEnabled = browserTargetsEnabled;
+    }
+
+    public void SetBrowserTargetsEnabled(bool enabled)
+    {
+        _browserTargetsEnabled = enabled;
+        if (!enabled)
+        {
+            List<DetectedApp> exited;
+            lock (_gate)
+            {
+                exited = _byPid.Values.Where(app => BrowserGuard.IsBrowser(app.ProcessName, app.ExecutablePath)).ToList();
+                foreach (var app in exited) _byPid.Remove(app.ProcessId);
+            }
+            foreach (var app in exited) AppExited?.Invoke(this, app);
+        }
+
+        // Reconcile promptly after an opt-in so an already-open browser page is
+        // visible without requiring the user to restart it.
+        try { _timer?.Change(enabled ? 0 : _intervalMs, _intervalMs); } catch (ObjectDisposedException) { }
     }
 
     public IReadOnlyList<DetectedApp> Snapshot()
@@ -132,6 +153,10 @@ public sealed class ProcessWatcher : IProcessWatcher
                 try
                 {
                     var name = process.ProcessName;
+                    // Browser windows can carry arbitrary page titles, including
+                    // names that resemble a target profile. They only enter the
+                    // target flow after the user explicitly enables browser targets.
+                    if (!_browserTargetsEnabled && BrowserGuard.IsBrowser(name, null)) continue;
                     var title = TryGetWindowTitle(process);
                     if (!_profiles.TryMatchProcess(name, out profile))
                     {
@@ -165,6 +190,7 @@ public sealed class ProcessWatcher : IProcessWatcher
                 catch { continue; }
 
                 if (IsElectronChild(snapshot.CommandLine)) continue;
+                if (!_browserTargetsEnabled && BrowserGuard.IsBrowser(snapshot.Name, snapshot.ExecutablePath)) continue;
                 if (IsNonGuiBackend(snapshot.ExecutablePath, snapshot.CommandLine)) continue;
                 candidates++;
 
@@ -241,13 +267,15 @@ public sealed class ProcessWatcher : IProcessWatcher
         if (cl.Contains("--stdio", StringComparison.OrdinalIgnoreCase)) return true;         // MCP/stdio agents
         if (px.Contains("\\claude-code\\", StringComparison.OrdinalIgnoreCase)) return true; // claude-code CLI dir
         if (px.Contains("\\.codex\\", StringComparison.OrdinalIgnoreCase)) return true;      // codex CLI dir
+        if (px.Contains("\\.traycer\\cli\\", StringComparison.OrdinalIgnoreCase)) return true; // Traycer CLI dir
         return false;
     }
 
     private static bool LooksLikeAiCandidate(ProcessSnapshot snapshot) =>
         (snapshot.Name + " " + snapshot.ProductName + " " + snapshot.FileDescription).Contains("claude", StringComparison.OrdinalIgnoreCase) ||
         (snapshot.Name + " " + snapshot.ProductName + " " + snapshot.FileDescription).Contains("codex", StringComparison.OrdinalIgnoreCase) ||
-        (snapshot.Name + " " + snapshot.ProductName + " " + snapshot.FileDescription).Contains("zcode", StringComparison.OrdinalIgnoreCase);
+        (snapshot.Name + " " + snapshot.ProductName + " " + snapshot.FileDescription).Contains("zcode", StringComparison.OrdinalIgnoreCase) ||
+        (snapshot.Name + " " + snapshot.ProductName + " " + snapshot.FileDescription).Contains("traycer", StringComparison.OrdinalIgnoreCase);
 
     private static ProcessSnapshot ReadMatchedSnapshot(
         Process process, string name, string? path,

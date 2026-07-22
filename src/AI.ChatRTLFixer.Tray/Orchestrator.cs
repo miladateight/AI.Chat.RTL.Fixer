@@ -6,6 +6,7 @@ using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Fonts;
 using AI.ChatRTLFixer.Injectors;
 using AI.ChatRTLFixer.Profiles;
+using AI.ChatRTLFixer.Win32;
 
 namespace AI.ChatRTLFixer.Tray;
 
@@ -172,7 +173,7 @@ public sealed class Orchestrator : IDisposable
         if (DateTime.UtcNow < entry.CooldownUntilUtc)
             return new RelaunchResult { Success = false, UserConsented = true, Detail = "cooldown-active" };
         Transition(entry, AppRuntimeState.Relaunching, "user-consented");
-        var result = await _relaunch.RelaunchWithRtlFixAsync(entry.App, profile, consent, entry.ExitToken);
+        var result = await _relaunch.RelaunchWithRtlFixAsync(entry.App, profile, _settings.EnableBrowserTargets, consent, entry.ExitToken);
         if (!result.Success)
         {
             Transition(entry, AppRuntimeState.RelaunchRequired, result.Detail ?? "relaunch-failed");
@@ -275,6 +276,29 @@ public sealed class Orchestrator : IDisposable
         }
 
         await ReconcileExistingAsync();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Makes browser targeting an explicit runtime opt-in. Disabling it restores
+    /// any live browser injection before the watcher stops tracking browsers.
+    /// </summary>
+    public async Task SetBrowserTargetsEnabledAsync(bool enabled)
+    {
+        if (_settings.EnableBrowserTargets == enabled) return;
+
+        if (!enabled)
+        {
+            var browserEntries = Entries()
+                .Where(entry => BrowserGuard.IsBrowser(entry.App.ProcessName, entry.App.ExecutablePath))
+                .ToList();
+            foreach (var entry in browserEntries)
+                await DisableEntryAsync(entry, "browser-targeting-disabled");
+        }
+
+        _settings.EnableBrowserTargets = enabled;
+        _watcher.SetBrowserTargetsEnabled(enabled);
+        if (enabled && _settings.GlobalEnabled) await ReconcileExistingAsync();
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 

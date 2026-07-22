@@ -19,6 +19,7 @@ public static class BuiltinProfiles
         ChatGptDesktop(),
         CodexDesktop(),
         ZCode(),
+        TraycerDesktop(),
         OpenCodeDesktop(),
         OpenClaw(),
         HermesAgent(),
@@ -111,6 +112,12 @@ public static class BuiltinProfiles
         "zcode", "ZCode", ["ZCode", "zcode"], "ZCode",
         "CDP compatibility and debug-argument handling are unverified; runtime injection remains Experimental.",
         ["ZCode"], ["%LOCALAPPDATA%\\Programs\\ZCode"]);
+
+    /// <summary>Traycer Desktop. The CLI executable is filtered as a non-GUI backend.</summary>
+    public static AppProfile TraycerDesktop() => ElectronExperimental(
+        "traycer", "Traycer", ["Traycer", "traycer"], "Traycer",
+        "Desktop installation verified at the standard Program Files location; selectors remain Experimental.",
+        ["Traycer"], ["%ProgramFiles%\\Traycer"]);
 
     /// <summary>
     /// OpenCode Desktop (@opencode-aidesktop). Electron-based; verified to honor

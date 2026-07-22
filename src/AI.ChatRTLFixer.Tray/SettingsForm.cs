@@ -111,6 +111,33 @@ public sealed class SettingsForm : Form
         };
         general.Controls.Add(autoRelaunch);
 
+        var browserTargets = new CheckBox
+        {
+            Text = "Enable browser targets (advanced; browser may be closed and reopened)",
+            Checked = settings.EnableBrowserTargets,
+            AutoSize = true,
+            Margin = new Padding(0, 10, 0, 0),
+            AccessibleName = "Enable browser targets",
+        };
+        browserTargets.CheckedChanged += async (_, _) =>
+        {
+            if (_loading) return;
+            if (browserTargets.Checked && MessageBox.Show(
+                    "Browser targeting can detect supported pages in your browser. A relaunch requires a separate confirmation and may close and reopen that browser. Continue?",
+                    Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                _loading = true;
+                browserTargets.Checked = false;
+                _loading = false;
+                return;
+            }
+
+            await _orchestrator.SetBrowserTargetsEnabledAsync(browserTargets.Checked);
+            await SaveAsync();
+            UpdateStatus();
+        };
+        general.Controls.Add(browserTargets);
+
         var updateChecks = new CheckBox
         {
             Text = "Check GitHub for updates when the app starts",

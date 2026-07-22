@@ -2,6 +2,7 @@ using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Profiles;
 using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Profiles;
+using AI.ChatRTLFixer.Win32;
 
 namespace AI.ChatRTLFixer.Core.Tests;
 
@@ -79,6 +80,24 @@ public class CoreUnitTests
         Assert.Equal(15, settings.ReconciliationIntervalSeconds);
         Assert.InRange(settings.ReconciliationIntervalSeconds, 5, 60);
         Assert.True(settings.DiscoveryTimeoutSeconds >= 2);
+        Assert.False(settings.EnableBrowserTargets);
+    }
+
+    [Theory]
+    [InlineData("chrome.exe")]
+    [InlineData("firefox")]
+    [InlineData("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")]
+    public void BrowserGuard_RecognizesConsumerBrowsers(string value)
+    {
+        Assert.True(BrowserGuard.IsBrowser(value, null));
+    }
+
+    [Fact]
+    public void BuiltinProfiles_MatchesTraycerDesktop()
+    {
+        var registry = new ProfileRegistry();
+        Assert.True(registry.TryMatchProcess("Traycer", out var profile));
+        Assert.Equal("traycer", profile.AppId);
     }
 
     [Fact]

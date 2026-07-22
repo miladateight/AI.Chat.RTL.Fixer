@@ -11,7 +11,7 @@ public sealed class AppSettings
     /// <summary>Schema version for forward migrations.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     /// <summary>Global kill switch. When false, no app is touched.</summary>
     public bool GlobalEnabled { get; set; } = true;
@@ -55,6 +55,13 @@ public sealed class AppSettings
     /// every relaunch, for every app, require a fresh click every time.
     /// </summary>
     public bool AutoRelaunchAfterConsent { get; set; } = true;
+
+    /// <summary>
+    /// Allows supported pages inside consumer browsers to be detected and, after
+    /// confirmation, relaunched with local debugging. Disabled by default so
+    /// ordinary browser windows are never touched.
+    /// </summary>
+    public bool EnableBrowserTargets { get; set; }
 
     public int RelaunchCooldownSeconds { get; set; } = 30;
     public int DiscoveryTimeoutSeconds { get; set; } = 20;

@@ -46,6 +46,9 @@ public interface IProcessWatcher : IDisposable
     /// <summary>Raised when a previously detected app exits.</summary>
     event EventHandler<DetectedApp>? AppExited;
 
+    /// <summary>Enables or disables detection of supported pages inside consumer browsers.</summary>
+    void SetBrowserTargetsEnabled(bool enabled);
+
     void Start();
     void Stop();
 }
@@ -92,6 +95,7 @@ public interface IRelaunchService
     Task<RelaunchResult> RelaunchWithRtlFixAsync(
         DetectedApp app,
         AppProfile profile,
+        bool allowBrowserTargets,
         Func<RelaunchWarning, Task<bool>> consentCallback,
         CancellationToken ct);
 }
