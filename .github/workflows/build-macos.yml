@@ -1,0 +1,44 @@
+name: build-macos
+
+# Builds and smoke-tests the macOS menu-bar app on a real Mac. This exists
+# because the app was ported to macOS from a Windows-only dev machine with
+# no Mac/Xcode available there — everything could be cross-compiled, but
+# nothing could actually be *run* until it reaches real macOS hardware.
+# Manual trigger only for now, to avoid spending macOS runner minutes
+# (billed at a higher multiplier than Linux) on every push.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build and package (arm64 + x64)
+        run: pwsh scripts/package-mac.ps1
+
+      - name: Launch smoke test (arm64)
+        run: |
+          set -e
+          APP="dist/mac/bundle-osx-arm64/AI Chat RTL Fixer.app/Contents/MacOS/AI.ChatRTLFixer.Mac"
+          chmod +x "$APP"
+          "$APP" &
+          PID=$!
+          sleep 5
+          if ! kill -0 "$PID" 2>/dev/null; then
+            echo "App exited within 5s of launch — treating as a crash."
+            exit 1
+          fi
+          echo "App is running after 5s (pid $PID). Killing for cleanup."
+          kill "$PID"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-builds-${{ github.run_number }}
+          path: dist/mac/*.zip
+          retention-days: 14

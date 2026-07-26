@@ -1,0 +1,8 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AI.ChatRTLFixer.Mac.SettingsWindow"
+        Title="AI Chat RTL Fixer"
+        Width="580" Height="720" MinWidth="580" MinHeight="560"
+        CanResize="True"
+        WindowStartupLocation="CenterScreen">
+</Window>

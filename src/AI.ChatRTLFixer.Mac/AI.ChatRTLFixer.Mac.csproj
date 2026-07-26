@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AssemblyName>AI.ChatRTLFixer.Mac</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Native" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\..\assets\branding\app-logo.ico">
+      <Link>Assets\app-logo.ico</Link>
+    </AvaloniaResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI.ChatRTLFixer.Core\AI.ChatRTLFixer.Core.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Diagnostics\AI.ChatRTLFixer.Diagnostics.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Rules\AI.ChatRTLFixer.Rules.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Profiles\AI.ChatRTLFixer.Profiles.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Fonts\AI.ChatRTLFixer.Fonts.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Clipboard\AI.ChatRTLFixer.Clipboard.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Injectors\AI.ChatRTLFixer.Injectors.csproj" />
+    <ProjectReference Include="..\AI.ChatRTLFixer.Mac.Platform\AI.ChatRTLFixer.Mac.Platform.csproj" />
+  </ItemGroup>
+
+</Project>
