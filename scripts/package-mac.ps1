@@ -190,13 +190,20 @@ foreach ($target in $targets) {
     # free). codesign only exists on macOS, so this only runs there — the
     # Windows-built output stays unsigned, which is fine for local iteration
     # but must not be what ships.
-    $isMac = ($PSVersionTable.PSEdition -eq 'Core') -and ($PSVersionTable.OS -like '*Darwin*')
-    if ($isMac) {
+    # Checking for the codesign tool directly (rather than sniffing
+    # $PSVersionTable for the OS) is the reliable signal: it's what this step
+    # actually needs, and it can't silently mismatch across pwsh builds/hosts.
+    $codesignCmd = Get-Command codesign -ErrorAction SilentlyContinue
+    if ($codesignCmd) {
         Write-Output "Ad-hoc signing $appDir ..."
         & codesign --force --deep --sign - $appDir
         if ($LASTEXITCODE -ne 0) { throw "codesign failed for $appDir" }
         & codesign --verify --deep --strict $appDir
         if ($LASTEXITCODE -ne 0) { throw "codesign verification failed for $appDir" }
+        Write-Output "Signature verified for $appDir."
+    }
+    else {
+        Write-Output "codesign not found on PATH — skipping ad-hoc signing (expected when running on Windows)."
     }
 
     $zipPath = Join-Path $distRoot "AIChatRTLFixer-$version-macos-$label.zip"
