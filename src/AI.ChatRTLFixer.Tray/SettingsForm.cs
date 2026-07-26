@@ -234,7 +234,9 @@ public sealed class SettingsForm : Form
         };
         foreach (var profile in _orchestrator.Profiles.OrderBy(profile => profile.DisplayName))
         {
-            var enabled = settings.Apps.TryGetValue(profile.AppId, out var toggle) ? toggle.Enabled : true;
+            // Opt-in: a profile with no saved toggle yet has never been enabled by
+            // the user, so the checkbox must start unchecked, not pre-ticked.
+            var enabled = settings.Apps.TryGetValue(profile.AppId, out var toggle) && toggle.Enabled;
             profileList.Items.Add(new ProfileChoice(profile), enabled);
         }
         // Size the list to show every profile so the last apps (OpenCode, ZCode)

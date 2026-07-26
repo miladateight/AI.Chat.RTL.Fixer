@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# AI Chat RTL Fixer 1.0.1
+# AI Chat RTL Fixer 1.0.2
 
 ابزار سبک ویندوزی برای بهترکردن نمایش راست‌به‌چپ متن در بخش گفت‌وگوی برنامه‌های دسکتاپ هوش مصنوعی. فقط ناحیهٔ چت تغییر می‌کند؛ کد، دستورها، مسیر فایل، URL و متن انگلیسی چپ‌به‌راست و قابل‌کپی باقی می‌مانند.
 
@@ -8,17 +8,19 @@
 
 ## دانلود
 
-- نصب‌کننده: [AIChatRTLFixerSetup-1.0.1.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.1/AIChatRTLFixerSetup-1.0.1.exe)
-- SHA-256: [AIChatRTLFixerSetup-1.0.1.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.1/AIChatRTLFixerSetup-1.0.1.exe.sha256)
+- نصب‌کننده: [AIChatRTLFixerSetup-1.0.2.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.2/AIChatRTLFixerSetup-1.0.2.exe)
+- SHA-256: [AIChatRTLFixerSetup-1.0.2.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.2/AIChatRTLFixerSetup-1.0.2.exe.sha256)
 - [همهٔ نسخه‌ها](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
 
-## قابلیت‌های نسخهٔ 1.0.1
+## قابلیت‌های نسخهٔ 1.0.2
 
 - اجرای مخفی در System Tray و انتخاب پیش‌فرض «اجرا هنگام شروع ویندوز» در نصب‌کننده.
 - تشخیص برنامه‌های هدف هنگام شروع ابزار و هنگام بازشدن آن‌ها.
 - بعد از یک تأیید صریح برای هر برنامه، بازکردن دوبارهٔ همان برنامه با CDP محلی و اعمال خودکار RTL در دفعات بعد.
 - اتصال مجدد بعد از refresh، جابه‌جایی صفحه یا قطع اتصال برنامهٔ هدف.
 - بررسی نسخهٔ جدید از GitHub Releases هنگام شروع برنامه یا به‌صورت دستی از منوی Tray.
+- **رفع باگ ری‌استارت اشتباه:** تشخیص بر اساس عنوان پنجره دیگر با هر پنجره‌ای که اسم برنامه (مثلاً ChatGPT) در عنوانش باشد (مثل یک عکس یا فایل) اشتباه گرفته نمی‌شود؛ و هر پروفایل فقط بعد از فعال‌کردن صریح در Settings ← App profiles توسط کاربر عمل می‌کند.
+- **رفع مشکل بی‌پاسخ‌بودن پنجرهٔ Settings** هنگام باز شدن از آیکون Tray.
 
 ## نحوهٔ کار
 
@@ -53,8 +55,8 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1 -SkipTests
 خروجی نصب‌کننده در مسیر زیر ساخته می‌شود:
 
 ```text
-dist\installer\AIChatRTLFixerSetup-1.0.1.exe
-dist\installer\AIChatRTLFixerSetup-1.0.1.exe.sha256
+dist\installer\AIChatRTLFixerSetup-1.0.2.exe
+dist\installer\AIChatRTLFixerSetup-1.0.2.exe.sha256
 ```
 
 </div>

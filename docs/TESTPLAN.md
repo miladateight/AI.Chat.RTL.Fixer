@@ -1,4 +1,4 @@
-# Test plan — 1.0.1
+# Test plan — 1.0.2
 
 Run this checklist before publishing a GitHub release. Do not mark an app profile Stable until its real installed version has passed the app-specific checks.
 
@@ -24,6 +24,9 @@ dotnet test AI.ChatRTLFixer.sln -c Release --no-build
 - Verify the fixer survives page navigation, chat streaming and a CDP reconnect.
 - Verify the chat area becomes RTL as appropriate while sidebars, menus, editors, terminals and code blocks remain untouched/LTR.
 - Disable the global switch and exit the app; confirm runtime changes are restored.
+- Open an image/document whose file name contains a supported app's name (e.g. "ChatGPT screenshot.png") in an unrelated viewer; confirm it is never detected or relaunched.
+- On a fresh settings.json, confirm every app profile starts unchecked in Settings and no app is acted on until explicitly enabled.
+- Open Settings from the tray icon (menu click and double-click); confirm every control (checkboxes, dropdowns, footer buttons) responds to the first click without needing to click the title bar first.
 
 ## Update checks
 
@@ -37,7 +40,7 @@ dotnet test AI.ChatRTLFixer.sln -c Release --no-build
 powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 ```
 
-- Verify both portable executables start and show the correct `1.0.1` version.
-- Verify `dist\installer\AIChatRTLFixerSetup-1.0.1.exe` and its `.sha256` file exist.
+- Verify both portable executables start and show the correct `1.0.2` version.
+- Verify `dist\installer\AIChatRTLFixerSetup-1.0.2.exe` and its `.sha256` file exist.
 - Install over the preceding version, preserving user settings; then test uninstall and the optional deletion prompt for `%AppData%\AIChatRTLFixer`.
 - Confirm setup offers Start with Windows as selected by default and Settings accurately reflects the resulting Windows Run entry.

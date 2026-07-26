@@ -19,6 +19,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly NotifyIcon _notify;
     private readonly ToolStripMenuItem _globalToggleItem;
     private readonly SynchronizationContext _uiContext;
+    private SettingsForm? _settingsForm;
 
     public TrayApplicationContext(Orchestrator orchestrator, SafeLogger logger, ISettingsStore settingsStore, UpdateChecker updateChecker)
     {
@@ -130,7 +131,25 @@ public sealed class TrayApplicationContext : ApplicationContext
         RebuildMenu();
     }
 
-    private void OpenSettings() => new SettingsForm(_orchestrator, _settingsStore, _logger, _updateChecker).Show();
+    private void OpenSettings()
+    {
+        if (_settingsForm is null || _settingsForm.IsDisposed)
+        {
+            _settingsForm = new SettingsForm(_orchestrator, _settingsStore, _logger, _updateChecker);
+            _settingsForm.FormClosed += (_, _) => _settingsForm = null;
+            _settingsForm.Show();
+        }
+
+        // A form opened from a NotifyIcon menu click or double-click is visible
+        // but does not receive real input focus by default — Windows' foreground
+        // lock leaves it inert to clicks until the user manually clicks its
+        // title bar first. Force activation so every control responds right away.
+        if (_settingsForm.WindowState == FormWindowState.Minimized)
+            _settingsForm.WindowState = FormWindowState.Normal;
+        _settingsForm.TopMost = true;
+        _settingsForm.TopMost = false;
+        _settingsForm.Activate();
+    }
 
     private async Task CheckForUpdatesAsync(bool interactive)
     {

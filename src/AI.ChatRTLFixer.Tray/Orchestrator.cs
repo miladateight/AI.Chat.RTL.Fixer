@@ -57,7 +57,10 @@ public sealed class Orchestrator : IDisposable
         try
         {
             entry.App = app;
-            if (!_settings.GlobalEnabled || (_settings.Apps.TryGetValue(app.AppId, out var setting) && !setting.Enabled))
+            // Opt-in by design: a profile the user has never explicitly ticked in
+            // Settings (or consented to relaunch) has no entry here and must stay
+            // untouched, even if a process happens to match its detection rules.
+            if (!_settings.GlobalEnabled || !(_settings.Apps.TryGetValue(app.AppId, out var setting) && setting.Enabled))
             {
                 Transition(entry, AppRuntimeState.DisabledByUser, "global-or-app-disabled");
                 return;

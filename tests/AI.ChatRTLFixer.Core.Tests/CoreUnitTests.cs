@@ -101,6 +101,45 @@ public class CoreUnitTests
     }
 
     [Fact]
+    public void ProfileRegistry_MatchesByWindowTitle_WhenTitleIsExactlyTheAppName()
+    {
+        var profile = new AppProfile
+        {
+            AppId = "chatgpt-desktop",
+            DisplayName = "ChatGPT Desktop",
+            ProcessNames = ["ChatGPT"],
+            WindowTitlePatterns = ["ChatGPT"],
+        };
+        var registry = new ProfileRegistry([profile]);
+
+        Assert.True(registry.TryMatchProcess("unknownexe", null, null, null, ["ChatGPT"], null, out var matched, out var reason));
+        Assert.Equal("chatgpt-desktop", matched.AppId);
+        Assert.Equal("window-title", reason);
+    }
+
+    [Theory]
+    [InlineData("ChatGPT Screenshot 2024-01-01.png")]
+    [InlineData("Vacation Photo - ChatGPT idea.jpg")]
+    [InlineData("ChatGPTNotes.txt")]
+    [InlineData("ChatGPTHelperUtility")]
+    public void ProfileRegistry_DoesNotMatchWindowTitle_ForUnrelatedFileViewer(string title)
+    {
+        // Regression: opening a document/image whose file name merely contains the
+        // app's name (e.g. "ChatGPT Screenshot.png" in Photos) must never be
+        // mistaken for the real ChatGPT desktop app and trigger a relaunch.
+        var profile = new AppProfile
+        {
+            AppId = "chatgpt-desktop",
+            DisplayName = "ChatGPT Desktop",
+            ProcessNames = ["ChatGPT"],
+            WindowTitlePatterns = ["ChatGPT"],
+        };
+        var registry = new ProfileRegistry([profile]);
+
+        Assert.False(registry.TryMatchProcess("PhotosApp", null, null, null, [title], null, out _, out _));
+    }
+
+    [Fact]
     public void BuiltinProfiles_NoStableWithoutVerifiedVersion()
     {
         // v0.1 rule: a profile is only Stable after a real verified version.

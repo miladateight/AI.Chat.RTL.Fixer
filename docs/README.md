@@ -1,6 +1,6 @@
 # AI Chat RTL Fixer documentation
 
-This folder contains release, security, test-plan and contribution documentation for AI Chat RTL Fixer 1.0.1.
+This folder contains release, security, test-plan and contribution documentation for AI Chat RTL Fixer 1.0.2.
 
 - [Product overview and downloads](../README.md)
 - [Release and packaging](RELEASE.md)
