@@ -1,34 +1,29 @@
 <#
 .SYNOPSIS
-    Builds and packages the macOS menu-bar app (AI.ChatRTLFixer.Mac) as a
-    double-clickable .app bundle, zipped per architecture.
+    Builds a single universal (Apple Silicon + Intel) .pkg installer for the
+    macOS menu-bar app (AI.ChatRTLFixer.Mac).
 
 .DESCRIPTION
-    Publishes self-contained builds for osx-arm64 (Apple Silicon) and osx-x64
-    (Intel), assembles each into a minimal .app bundle (Info.plist +
-    Contents/MacOS), and zips them.
+    Publishes self-contained builds for osx-arm64 and osx-x64, merges every
+    native binary between them into one universal (fat) copy via `lipo`,
+    assembles a single .app bundle from that merge, ad-hoc signs it, and
+    packages it as one .pkg — so there's one download that installs
+    correctly on either kind of Mac, not a separate file per architecture.
 
-    IMPORTANT — cross-compiled from Windows:
-      - This script can only be run here; it has never been executed or
-        launched on a real Mac, because this environment has no macOS
-        machine or Xcode. `dotnet publish` for osx-arm64/osx-x64 is
-        officially supported cross-OS (pure managed output, no native
-        toolchain step), so the binaries themselves should be valid — but
-        that has NOT been verified by actually running them.
-      - Ad-hoc code signing runs automatically when this script executes on
-        a real Mac (e.g. the build-macos.yml CI job), and is skipped when it
-        runs here on Windows since codesign doesn't exist here. Ad-hoc
-        signing is free and needs no Apple account, but it is NOT
+    IMPORTANT — packaging steps only run on macOS:
+      - `dotnet publish` for osx-arm64/osx-x64 works fine cross-OS (pure
+        managed output), so this script runs on Windows too — but `lipo`,
+        `codesign` and `pkgbuild` are macOS-only tools. On Windows this
+        script only produces the two separate publish folders for a quick
+        compile sanity check; the actual universal .pkg is only ever
+        produced when this same script runs on a real Mac (the
+        build-macos.yml CI job).
+      - Ad-hoc signing is free and needs no Apple account, but it is NOT
         notarization: first launch on a real Mac will still show
         Gatekeeper's "unidentified developer" warning until the app is
         signed with a paid Developer ID and notarized. Users must right-
         click > Open (or System Settings > Privacy & Security > Open
-        Anyway) once, or run: xattr -cr on the downloaded app/pkg.
-      - Windows has no concept of a Unix executable bit, so a plain zip of
-        these files would extract as non-executable on macOS. This script
-        manually stamps the Unix file-mode bits into the zip's external
-        attributes (0755 for the main binary, 0644 elsewhere) so `open` /
-        double-click works after unzip without an extra `chmod`.
+        Anyway) once.
 #>
 param(
     [switch] $SkipPublish
@@ -84,140 +79,115 @@ function New-InfoPlist([string]$path) {
     [System.IO.File]::WriteAllText($path, $content, $utf8NoBom)
 }
 
-# Zips a directory into a macOS-valid archive: paths use '/', and the Unix
-# executable bit is stamped into each entry's external attributes since
-# Windows has no such bit to preserve.
-function New-MacZip([string]$sourceDir, [string]$zipPath, [string]$executableRelativePath) {
-    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-    Add-Type -AssemblyName System.IO.Compression
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
-    try {
-        $files = Get-ChildItem -Path $sourceDir -Recurse -File
-        foreach ($file in $files) {
-            $relative = $file.FullName.Substring($sourceDir.Length + 1).Replace('\', '/')
-            $entry = $zip.CreateEntry($relative, [System.IO.Compression.CompressionLevel]::Optimal)
-            $entryStream = $entry.Open()
-            $fileStream = [System.IO.File]::OpenRead($file.FullName)
-            try { $fileStream.CopyTo($entryStream) }
-            finally { $fileStream.Dispose(); $entryStream.Dispose() }
+# Combines the osx-arm64 and osx-x64 publish outputs into one universal
+# folder. Native Mach-O files (the apphost, CoreCLR, SkiaSharp,
+# AvaloniaNative, ...) are merged with `lipo` into a single fat binary that
+# runs on either architecture; everything else (managed IL DLLs, JSON,
+# resources) is architecture-neutral and identical between the two publishes,
+# so it's just copied once.
+function Merge-Universal([string]$armDir, [string]$x64Dir, [string]$outDir) {
+    if (Test-Path $outDir) { Remove-Item $outDir -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-            $isExecutable = $relative -eq $executableRelativePath
-            # High 16 bits of ExternalAttributes = Unix mode. S_IFREG (0100000)
-            # plus 0755 (rwxr-xr-x) or 0644 (rw-r--r--).
-            $mode = if ($isExecutable) { 0x81ED } else { 0x81A4 }
-            $entry.ExternalAttributes = ($mode -shl 16)
+    $armFiles = Get-ChildItem -Path $armDir -Recurse -File
+    foreach ($file in $armFiles) {
+        $relative = $file.FullName.Substring($armDir.Length + 1)
+        $x64Path = Join-Path $x64Dir $relative
+        $outPath = Join-Path $outDir $relative
+        New-Item -ItemType Directory -Force -Path (Split-Path $outPath) | Out-Null
+
+        if (Test-Path $x64Path) {
+            # lipo fails on non-Mach-O input (managed DLLs, JSON, etc.) —
+            # that failure is the expected, common case here, not an error;
+            # those files are identical between RIDs, so just copy one.
+            & lipo -create $file.FullName $x64Path -output $outPath 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Copy-Item $file.FullName $outPath -Force
+            }
+        }
+        else {
+            Copy-Item $file.FullName $outPath -Force
         }
     }
-    finally { $zip.Dispose() }
 
-    Set-ZipUnixHost -zipPath $zipPath
-}
-
-# .NET's ZipArchive stamps "version made by" with the host OS it ran on
-# (Windows/FAT = 0), so unzip tools on macOS ignore the Unix-mode bits we
-# just set in ExternalAttributes — that field's meaning is host-dependent
-# per the ZIP spec. This walks the central directory (after the archive is
-# closed, so offsets are final) and rewrites the host-OS byte of each
-# "version made by" field to 3 (Unix), the same patch cross-platform zip
-# tools apply when building macOS-bound archives on a non-Unix host.
-function Set-ZipUnixHost([string]$zipPath) {
-    $bytes = [System.IO.File]::ReadAllBytes($zipPath)
-
-    # End Of Central Directory record is fixed-size (22 bytes) when the
-    # archive has no trailing comment, which is true for archives .NET
-    # itself created (as this one was, immediately above).
-    $eocd = $bytes.Length - 22
-    if ($eocd -lt 0 -or [BitConverter]::ToUInt32($bytes, $eocd) -ne 0x06054b50) {
-        throw "Unexpected zip layout: End Of Central Directory record not found for $zipPath"
-    }
-    $entryCount = [BitConverter]::ToUInt16($bytes, $eocd + 10)
-    $cdOffset = [BitConverter]::ToUInt32($bytes, $eocd + 16)
-
-    $pos = [int]$cdOffset
-    for ($i = 0; $i -lt $entryCount; $i++) {
-        if ([BitConverter]::ToUInt32($bytes, $pos) -ne 0x02014b50) {
-            throw "Unexpected zip layout: central directory entry $i has a bad signature in $zipPath"
+    # Anything present only on the x64 side (shouldn't normally happen for a
+    # like-for-like self-contained publish, but don't silently drop it).
+    $x64Files = Get-ChildItem -Path $x64Dir -Recurse -File
+    foreach ($file in $x64Files) {
+        $relative = $file.FullName.Substring($x64Dir.Length + 1)
+        $outPath = Join-Path $outDir $relative
+        if (-not (Test-Path $outPath)) {
+            New-Item -ItemType Directory -Force -Path (Split-Path $outPath) | Out-Null
+            Copy-Item $file.FullName $outPath -Force
         }
-        $bytes[$pos + 5] = 3  # host OS byte of "version made by" -> Unix
-        $nameLen = [BitConverter]::ToUInt16($bytes, $pos + 28)
-        $extraLen = [BitConverter]::ToUInt16($bytes, $pos + 30)
-        $commentLen = [BitConverter]::ToUInt16($bytes, $pos + 32)
-        $pos += 46 + $nameLen + $extraLen + $commentLen
     }
-
-    [System.IO.File]::WriteAllBytes($zipPath, $bytes)
 }
 
-$targets = @(
-    @{ Rid = "osx-arm64"; Label = "apple-silicon" },
-    @{ Rid = "osx-x64";   Label = "intel" }
-)
+$armPublishDir = Join-Path $distRoot "publish-osx-arm64"
+$x64PublishDir = Join-Path $distRoot "publish-osx-x64"
 
 New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
 
-foreach ($target in $targets) {
-    $rid = $target.Rid
-    $label = $target.Label
-    $publishDir = Join-Path $distRoot "publish-$rid"
-    $bundleRoot = Join-Path $distRoot "bundle-$rid"
-    $appDir = Join-Path $bundleRoot $bundleName
-
-    if (-not $SkipPublish) {
-        Write-Output "Publishing $rid (self-contained)..."
-        dotnet publish $project -c Release -r $rid --self-contained true -o $publishDir `
+if (-not $SkipPublish) {
+    foreach ($pair in @(@{ Rid = "osx-arm64"; Out = $armPublishDir }, @{ Rid = "osx-x64"; Out = $x64PublishDir })) {
+        Write-Output "Publishing $($pair.Rid) (self-contained)..."
+        dotnet publish $project -c Release -r $pair.Rid --self-contained true -o $pair.Out `
             /p:PublishSingleFile=false /p:IncludeNativeLibrariesForSelfExtract=false
-        if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $rid" }
+        if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $($pair.Rid)" }
     }
+}
 
-    if (Test-Path $bundleRoot) { Remove-Item $bundleRoot -Recurse -Force }
-    $macosDir = Join-Path $appDir "Contents\MacOS"
-    $resourcesDir = Join-Path $appDir "Contents\Resources"
-    New-Item -ItemType Directory -Force -Path $macosDir | Out-Null
-    New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null
+# `lipo` (and codesign/pkgbuild below) only exist on macOS. This is the
+# reliable signal for "am I actually able to build the universal package
+# here" — checking the tool directly instead of sniffing the OS avoids the
+# kind of silent-skip bug a $PSVersionTable check caused before.
+$lipoCmd = Get-Command lipo -ErrorAction SilentlyContinue
+if (-not $lipoCmd) {
+    Write-Output "lipo not found on PATH - publishing only (expected when running on Windows)."
+    Write-Output "Publish output: $armPublishDir and $x64PublishDir"
+    return
+}
 
-    Copy-Item -Path (Join-Path $publishDir '*') -Destination $macosDir -Recurse -Force
-    New-InfoPlist -path (Join-Path $appDir "Contents\Info.plist")
+$bundleRoot = Join-Path $distRoot "bundle-universal"
+$appDir = Join-Path $bundleRoot $bundleName
+$macosDir = Join-Path $appDir "Contents\MacOS"
+$resourcesDir = Join-Path $appDir "Contents\Resources"
 
-    # A self-contained .NET publish bundles native libraries (CoreCLR,
-    # SkiaSharp, HarfBuzzSharp, AvaloniaNative) that arrive from NuGet with no
-    # unified signature covering the app as a whole. On Apple Silicon the
-    # kernel refuses to execute code with no valid signature at all — this is
-    # separate from and stricter than Gatekeeper's "unidentified developer"
-    # prompt, and shows up as the app simply failing to open with no visible
-    # override. `--deep` signs every embedded binary and folds them under one
-    # ad-hoc signature ("-" = self-signed, no Apple Developer ID needed and
-    # free). codesign only exists on macOS, so this only runs there — the
-    # Windows-built output stays unsigned, which is fine for local iteration
-    # but must not be what ships.
-    # Checking for the codesign tool directly (rather than sniffing
-    # $PSVersionTable for the OS) is the reliable signal: it's what this step
-    # actually needs, and it can't silently mismatch across pwsh builds/hosts.
-    $codesignCmd = Get-Command codesign -ErrorAction SilentlyContinue
-    if ($codesignCmd) {
-        Write-Output "Ad-hoc signing $appDir ..."
-        & codesign --force --deep --sign - $appDir
-        if ($LASTEXITCODE -ne 0) { throw "codesign failed for $appDir" }
-        & codesign --verify --deep --strict $appDir
-        if ($LASTEXITCODE -ne 0) { throw "codesign verification failed for $appDir" }
-        Write-Output "Signature verified for $appDir."
-    }
-    else {
-        Write-Output "codesign not found on PATH — skipping ad-hoc signing (expected when running on Windows)."
-    }
+Write-Output "Merging osx-arm64 + osx-x64 into a universal build..."
+Merge-Universal -armDir $armPublishDir -x64Dir $x64PublishDir -outDir $macosDir
+New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null
+New-InfoPlist -path (Join-Path $appDir "Contents\Info.plist")
 
-    $zipPath = Join-Path $distRoot "AIChatRTLFixer-$version-macos-$label.zip"
-    Write-Output "Packaging $zipPath ..."
-    New-MacZip -sourceDir $bundleRoot -zipPath $zipPath -executableRelativePath "$bundleName/Contents/MacOS/$executableName"
+# A self-contained .NET publish bundles native libraries (CoreCLR,
+# SkiaSharp, HarfBuzzSharp, AvaloniaNative) with no unified signature
+# covering the app as a whole. On Apple Silicon the kernel refuses to
+# execute code with no valid signature at all — separate from and stricter
+# than Gatekeeper's "unidentified developer" prompt. `--deep` signs every
+# embedded binary and folds them under one ad-hoc signature ("-" =
+# self-signed, no Apple Developer ID needed and free).
+$codesignCmd = Get-Command codesign -ErrorAction SilentlyContinue
+if ($codesignCmd) {
+    Write-Output "Ad-hoc signing $appDir ..."
+    & codesign --force --deep --sign - $appDir
+    if ($LASTEXITCODE -ne 0) { throw "codesign failed for $appDir" }
+    & codesign --verify --deep --strict $appDir
+    if ($LASTEXITCODE -ne 0) { throw "codesign verification failed for $appDir" }
+    Write-Output "Signature verified for $appDir."
+}
 
-    $hash = Get-FileHash -Algorithm SHA256 $zipPath
-    $hashLine = "{0}  {1}" -f $hash.Hash.ToLowerInvariant(), (Split-Path -Leaf $zipPath)
-    Set-Content -Path "$zipPath.sha256" -Value $hashLine -Encoding ascii
-    Write-Output "Packaged: $zipPath"
+$pkgbuildCmd = Get-Command pkgbuild -ErrorAction SilentlyContinue
+if ($pkgbuildCmd) {
+    $pkgPath = Join-Path $distRoot "AIChatRTLFixer-$version-macos.pkg"
+    Write-Output "Building $pkgPath ..."
+    & pkgbuild --root $bundleRoot --identifier $bundleId --version $version --install-location /Applications $pkgPath
+    if ($LASTEXITCODE -ne 0) { throw "pkgbuild failed" }
+
+    $hash = Get-FileHash -Algorithm SHA256 $pkgPath
+    Write-Output "Packaged: $pkgPath"
     Write-Output "SHA-256: $($hash.Hash.ToLowerInvariant())"
 }
 
 Write-Output ""
-Write-Output "Done. Ad-hoc signed when built on macOS; still UNNOTARIZED (no Apple Developer ID configured)."
-Write-Output "On first launch, macOS Gatekeeper will block them; users must right-click the app > Open once,"
-Write-Output "or run: xattr -cr '/path/to/AI Chat RTL Fixer.app'"
+Write-Output "Done. Universal (arm64 + x64) build, ad-hoc signed; still UNNOTARIZED (no Apple Developer ID configured)."
+Write-Output "On first launch, macOS Gatekeeper will block it; users must right-click the .pkg > Open once,"
+Write-Output "or allow it via System Settings > Privacy & Security > Open Anyway."

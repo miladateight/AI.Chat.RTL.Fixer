@@ -19,13 +19,17 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Build and package (arm64 + x64)
+      # Publishes both architectures, merges them into one universal build
+      # with lipo, ad-hoc signs it, and packages the single .pkg — all inside
+      # the script, since lipo/codesign/pkgbuild are only available here on
+      # a real Mac.
+      - name: Build universal .pkg (arm64 + x64)
         run: pwsh scripts/package-mac.ps1
 
-      - name: Launch smoke test (arm64)
+      - name: Launch smoke test
         run: |
           set -e
-          APP="dist/mac/bundle-osx-arm64/AI Chat RTL Fixer.app/Contents/MacOS/AI.ChatRTLFixer.Mac"
+          APP="dist/mac/bundle-universal/AI Chat RTL Fixer.app/Contents/MacOS/AI.ChatRTLFixer.Mac"
           chmod +x "$APP"
           "$APP" &
           PID=$!
@@ -37,32 +41,8 @@ jobs:
           echo "App is running after 5s (pid $PID). Killing for cleanup."
           kill "$PID"
 
-      # pkgbuild/productbuild only exist on macOS (Xcode Command Line Tools),
-      # which is exactly why this step lives in CI instead of the Windows-run
-      # packaging script: a real double-clickable .pkg installer, like a
-      # normal macOS app, instead of a bare .zip.
-      - name: Build .pkg installers (arm64 + x64)
-        run: |
-          set -e
-          VERSION="1.0.2"
-          IDENTIFIER="com.aichatrtlfixer.mac"
-          for pair in "osx-arm64:apple-silicon" "osx-x64:intel"; do
-            rid="${pair%%:*}"
-            label="${pair##*:}"
-            appDir="dist/mac/bundle-$rid/AI Chat RTL Fixer.app"
-            chmod +x "$appDir/Contents/MacOS/AI.ChatRTLFixer.Mac"
-            pkgbuild \
-              --root "dist/mac/bundle-$rid" \
-              --identifier "$IDENTIFIER" \
-              --version "$VERSION" \
-              --install-location /Applications \
-              "dist/mac/AIChatRTLFixer-$VERSION-macos-$label.pkg"
-          done
-
       - uses: actions/upload-artifact@v4
         with:
           name: mac-builds-${{ github.run_number }}
-          path: |
-            dist/mac/*.zip
-            dist/mac/*.pkg
+          path: dist/mac/*.pkg
           retention-days: 14
