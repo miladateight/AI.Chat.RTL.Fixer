@@ -15,11 +15,15 @@
         officially supported cross-OS (pure managed output, no native
         toolchain step), so the binaries themselves should be valid — but
         that has NOT been verified by actually running them.
-      - No code signing or notarization: neither is possible without a Mac
-        (codesign/notarytool are Xcode-only tools) and there is no Apple
-        Developer ID yet. First launch on a real Mac will show Gatekeeper's
-        "unidentified developer" warning; the user must right-click > Open
-        (or System Settings > Privacy & Security > Open Anyway) once.
+      - Ad-hoc code signing runs automatically when this script executes on
+        a real Mac (e.g. the build-macos.yml CI job), and is skipped when it
+        runs here on Windows since codesign doesn't exist here. Ad-hoc
+        signing is free and needs no Apple account, but it is NOT
+        notarization: first launch on a real Mac will still show
+        Gatekeeper's "unidentified developer" warning until the app is
+        signed with a paid Developer ID and notarized. Users must right-
+        click > Open (or System Settings > Privacy & Security > Open
+        Anyway) once, or run: xattr -cr on the downloaded app/pkg.
       - Windows has no concept of a Unix executable bit, so a plain zip of
         these files would extract as non-executable on macOS. This script
         manually stamps the Unix file-mode bits into the zip's external
@@ -175,6 +179,26 @@ foreach ($target in $targets) {
     Copy-Item -Path (Join-Path $publishDir '*') -Destination $macosDir -Recurse -Force
     New-InfoPlist -path (Join-Path $appDir "Contents\Info.plist")
 
+    # A self-contained .NET publish bundles native libraries (CoreCLR,
+    # SkiaSharp, HarfBuzzSharp, AvaloniaNative) that arrive from NuGet with no
+    # unified signature covering the app as a whole. On Apple Silicon the
+    # kernel refuses to execute code with no valid signature at all — this is
+    # separate from and stricter than Gatekeeper's "unidentified developer"
+    # prompt, and shows up as the app simply failing to open with no visible
+    # override. `--deep` signs every embedded binary and folds them under one
+    # ad-hoc signature ("-" = self-signed, no Apple Developer ID needed and
+    # free). codesign only exists on macOS, so this only runs there — the
+    # Windows-built output stays unsigned, which is fine for local iteration
+    # but must not be what ships.
+    $isMac = ($PSVersionTable.PSEdition -eq 'Core') -and ($PSVersionTable.OS -like '*Darwin*')
+    if ($isMac) {
+        Write-Output "Ad-hoc signing $appDir ..."
+        & codesign --force --deep --sign - $appDir
+        if ($LASTEXITCODE -ne 0) { throw "codesign failed for $appDir" }
+        & codesign --verify --deep --strict $appDir
+        if ($LASTEXITCODE -ne 0) { throw "codesign verification failed for $appDir" }
+    }
+
     $zipPath = Join-Path $distRoot "AIChatRTLFixer-$version-macos-$label.zip"
     Write-Output "Packaging $zipPath ..."
     New-MacZip -sourceDir $bundleRoot -zipPath $zipPath -executableRelativePath "$bundleName/Contents/MacOS/$executableName"
@@ -187,6 +211,6 @@ foreach ($target in $targets) {
 }
 
 Write-Output ""
-Write-Output "Done. Both zips are UNSIGNED and UNNOTARIZED (no Apple Developer ID configured)."
+Write-Output "Done. Ad-hoc signed when built on macOS; still UNNOTARIZED (no Apple Developer ID configured)."
 Write-Output "On first launch, macOS Gatekeeper will block them; users must right-click the app > Open once,"
 Write-Output "or run: xattr -cr '/path/to/AI Chat RTL Fixer.app'"
