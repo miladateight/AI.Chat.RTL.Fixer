@@ -23,6 +23,7 @@ public sealed class TrayApp
     private readonly ISettingsStore _settingsStore;
     private readonly UpdateChecker _updateChecker;
     private readonly TrayIcon _trayIcon;
+    private readonly NativeMenu _menu = new();
     private SettingsWindow? _settingsWindow;
 
     public TrayApp(IClassicDesktopStyleApplicationLifetime lifetime, Orchestrator orchestrator, SafeLogger logger, ISettingsStore settingsStore, UpdateChecker updateChecker)
@@ -38,7 +39,7 @@ public sealed class TrayApp
             Icon = LoadAppIcon(),
             ToolTipText = Constants.ProductName,
             IsVisible = true,
-            Menu = new NativeMenu(),
+            Menu = _menu,
         };
         _trayIcon.Clicked += (_, _) => OpenSettings();
         TrayIcon.SetIcons(Application.Current!, new TrayIcons { _trayIcon });
@@ -66,13 +67,19 @@ public sealed class TrayApp
 
     private void RebuildMenu()
     {
-        var menu = new NativeMenu();
+        // Avalonia's macOS native menu exporter tracks the NativeMenu instance
+        // it was handed and throws if TrayIcon.Menu is ever reassigned to a
+        // *different* NativeMenu object ("The menu being updated does not
+        // match") — confirmed by a real crash on macOS CI. So the same
+        // instance is kept for the app's lifetime and cleared/repopulated
+        // in place instead of being replaced.
+        _menu.Items.Clear();
         var settings = _orchestrator.Settings;
 
         var toggle = new NativeMenuItem("Enabled") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = settings.GlobalEnabled };
         toggle.Click += async (_, _) => await ToggleGlobalAsync();
-        menu.Add(toggle);
-        menu.Add(new NativeMenuItemSeparator());
+        _menu.Add(toggle);
+        _menu.Add(new NativeMenuItemSeparator());
 
         var detected = new NativeMenuItem("Detected Apps") { Menu = new NativeMenu() };
         foreach (var status in _orchestrator.RuntimeStatuses)
@@ -83,12 +90,12 @@ public sealed class TrayApp
         }
         if (detected.Menu!.Items.Count == 0)
             detected.Menu.Add(new NativeMenuItem("(none)") { IsEnabled = false });
-        menu.Add(detected);
+        _menu.Add(detected);
 
         var pending = _orchestrator.PendingRelaunch;
         if (pending.Count > 0)
         {
-            menu.Add(new NativeMenuItemSeparator());
+            _menu.Add(new NativeMenuItemSeparator());
             var relaunchMenu = new NativeMenuItem("Relaunch with RTL Fix…") { Menu = new NativeMenu() };
             foreach (var app in pending)
             {
@@ -97,20 +104,18 @@ public sealed class TrayApp
                 item.Click += async (_, _) => await RelaunchAppAsync(app);
                 relaunchMenu.Menu!.Add(item);
             }
-            menu.Add(relaunchMenu);
+            _menu.Add(relaunchMenu);
         }
 
-        menu.Add(new NativeMenuItemSeparator());
-        menu.Add(Mi("Settings...", OpenSettings));
-        menu.Add(Mi("Open logs", OpenLogs));
-        menu.Add(MiAsync("Export Detection Report", ExportDetectionReportAsync));
-        menu.Add(MiAsync("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
-        menu.Add(MiAsync("Reset runtime changes", () => _orchestrator.DisableAllAsync()));
-        menu.Add(new NativeMenuItemSeparator());
-        menu.Add(Mi("About", ShowAbout));
-        menu.Add(Mi("Exit", ExitApp));
-
-        _trayIcon.Menu = menu;
+        _menu.Add(new NativeMenuItemSeparator());
+        _menu.Add(Mi("Settings...", OpenSettings));
+        _menu.Add(Mi("Open logs", OpenLogs));
+        _menu.Add(MiAsync("Export Detection Report", ExportDetectionReportAsync));
+        _menu.Add(MiAsync("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
+        _menu.Add(MiAsync("Reset runtime changes", () => _orchestrator.DisableAllAsync()));
+        _menu.Add(new NativeMenuItemSeparator());
+        _menu.Add(Mi("About", ShowAbout));
+        _menu.Add(Mi("Exit", ExitApp));
     }
 
     private static NativeMenuItem Mi(string text, Action handler)
