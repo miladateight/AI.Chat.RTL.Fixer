@@ -18,6 +18,7 @@
     <ProjectReference Include="..\..\src\AI.ChatRTLFixer.Diagnostics\AI.ChatRTLFixer.Diagnostics.csproj" />
     <ProjectReference Include="..\..\src\AI.ChatRTLFixer.Profiles\AI.ChatRTLFixer.Profiles.csproj" />
     <ProjectReference Include="..\..\src\AI.ChatRTLFixer.Win32\AI.ChatRTLFixer.Win32.csproj" />
+    <ProjectReference Include="..\..\src\AI.ChatRTLFixer.Mac.Platform\AI.ChatRTLFixer.Mac.Platform.csproj" />
   </ItemGroup>
 
   <ItemGroup>

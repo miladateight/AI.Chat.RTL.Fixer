@@ -170,6 +170,39 @@ public class MockDomTests
     }
 
     [Fact]
+    public async Task Script_RightAlignsBulletedAndNumberedItemsDespiteImportantAppCss()
+    {
+        using var pw = await PlaywrightFixture.CreateAsync();
+        var page = await pw.NewPageAsync();
+        await page.SetContentAsync(MockHtml);
+        await page.AddStyleTagAsync(new PageAddStyleTagOptions
+        {
+            Content = "#chat li { direction: ltr !important; text-align: left !important; }",
+        });
+        await page.EvaluateAsync(
+            "document.querySelector('#messages').insertAdjacentHTML('beforeend'," +
+            "'<ul><li id=bullet>OpenAIEnterpriseWorkspaceExperimentalPreview: \u0627\u06CC\u0646 \u0645\u0648\u0631\u062F \u0641\u0627\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u0627\u0633\u062A</li></ul>' +" +
+            "'<ol><li id=numbered>\u0627\u06CC\u0646 \u0645\u0648\u0631\u062F \u0634\u0645\u0627\u0631\u0647\u200C\u062F\u0627\u0631 \u0641\u0627\u0631\u0633\u06CC \u0627\u0633\u062A</li></ol>')");
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions { Content = BuildScript() });
+        await page.WaitForTimeoutAsync(300);
+
+        foreach (var id in new[] { "#bullet", "#numbered" })
+        {
+            var dir = await page.Locator(id).GetAttributeAsync("dir");
+            var diagnostic = await page.Locator(id).EvaluateAsync<string>(
+                "el => JSON.stringify({ text: el.textContent, decision: window.RtlFixerRules.classify(el.textContent), html: el.outerHTML })");
+            Assert.True(dir == "rtl", $"{id} was not marked RTL: {diagnostic}");
+            Assert.Equal("rtl", await page.Locator(id).EvaluateAsync<string>("el => getComputedStyle(el).direction"));
+            Assert.Equal("start", await page.Locator(id).EvaluateAsync<string>("el => getComputedStyle(el).textAlign"));
+        }
+
+        await page.EvaluateAsync("window.__rtlfixerRestore()");
+        Assert.Null(await page.Locator("#bullet").GetAttributeAsync("dir"));
+        Assert.Equal("ltr", await page.Locator("#bullet").EvaluateAsync<string>("el => getComputedStyle(el).direction"));
+        Assert.Equal("left", await page.Locator("#bullet").EvaluateAsync<string>("el => getComputedStyle(el).textAlign"));
+    }
+
+    [Fact]
     public async Task Script_DoesNotFlipContainerDivWithBlockChildren()
     {
         // A DIV that wraps block-level children is a layout container: it must

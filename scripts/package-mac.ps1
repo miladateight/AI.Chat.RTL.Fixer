@@ -35,7 +35,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-$version = "1.0.2"
+$version = "1.0.3"
 $bundleName = "AI Chat RTL Fixer.app"
 $executableName = "AI.ChatRTLFixer.Mac"
 $bundleId = "com.aichatrtlfixer.mac"

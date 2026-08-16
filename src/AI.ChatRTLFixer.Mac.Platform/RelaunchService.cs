@@ -71,9 +71,9 @@ public sealed class RelaunchService : IRelaunchService
             return new RelaunchResult { Success = false, UserConsented = true, ManualReopen = true, ManualCommand = manual, Unsafe = true };
         }
 
-        var originalArgs = ParseArgs(app.CommandLine);
+        var originalArgs = ParseArgs(app.CommandLine, exe);
         var debugArgs = profile.Cdp.LaunchArgs.Select(a => a.Replace("${port}", port.Value.ToString()));
-        var finalArgs = string.Join(' ', originalArgs.Concat(debugArgs));
+        var finalArgs = originalArgs.Concat(debugArgs).ToList();
 
         try
         {
@@ -109,7 +109,7 @@ public sealed class RelaunchService : IRelaunchService
             // Launching the executable inside Contents/MacOS/ directly (rather
             // than `open -a`) preserves argv exactly, which CDP requires.
             var startInfo = new ProcessStartInfo(exe) { UseShellExecute = false };
-            foreach (var arg in SplitPreservingQuotes(finalArgs)) startInfo.ArgumentList.Add(arg);
+            foreach (var arg in finalArgs) startInfo.ArgumentList.Add(arg);
             var newProc = Process.Start(startInfo);
             var argsVerified = newProc is not null && WaitForDebugArgs(newProc.Id, port.Value, TimeSpan.FromMilliseconds(300));
             _logger.Log(LogLevel.Information, LogCategories.Relaunch, argsVerified ? "args-verified" : "args-unverified", ("app", profile.AppId), ("port", port.Value));
@@ -136,16 +136,25 @@ public sealed class RelaunchService : IRelaunchService
         return $"\"{profile.DisplayName}\" {args}";
     }
 
-    private static IEnumerable<string> ParseArgs(string? commandLine)
+    internal static IReadOnlyList<string> ParseArgs(string? commandLine, string executablePath)
     {
-        if (string.IsNullOrEmpty(commandLine)) return [];
-        var tokens = SplitPreservingQuotes(commandLine).Skip(1)
-            .Where(t => !t.StartsWith("--remote-debugging", StringComparison.OrdinalIgnoreCase));
-        return tokens;
-    }
+        if (string.IsNullOrWhiteSpace(commandLine)) return [];
 
-    private static IEnumerable<string> SplitPreservingQuotes(string value) =>
-        value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var rest = commandLine.TrimStart();
+        if (!string.IsNullOrWhiteSpace(executablePath) &&
+            rest.StartsWith(executablePath, StringComparison.Ordinal) &&
+            (rest.Length == executablePath.Length || char.IsWhiteSpace(rest[executablePath.Length])))
+        {
+            rest = rest[executablePath.Length..].TrimStart();
+        }
+        else
+        {
+            var allArguments = PosixCommandLine.Split(rest);
+            rest = string.Join(' ', allArguments.Skip(1).Select(PosixCommandLine.Quote));
+        }
+
+        return LaunchArgumentSanitizer.RemoveRemoteDebuggingArguments(PosixCommandLine.Split(rest));
+    }
 
     private static bool WaitForDebugArgs(int processId, int port, TimeSpan timeout)
     {

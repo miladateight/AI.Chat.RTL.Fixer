@@ -25,7 +25,7 @@ public sealed class CdpAdapter : ITargetAdapter
     private int _msgId;
     private CancellationTokenSource? _listenCts;
     private string? _newDocumentScriptId;
-    private bool _disposed;
+    private int _disposed;
 
     public bool IsAttached => _ws is { State: WebSocketState.Open };
 
@@ -54,7 +54,7 @@ public sealed class CdpAdapter : ITargetAdapter
     /// </summary>
     public async Task<AttachResult> AttachToPortAsync(AppProfile profile, int port, CancellationToken ct)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(CdpAdapter));
+        if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(CdpAdapter));
         var cdp = profile.Cdp!;
         var bind = Constants.LoopbackAddress;
 
@@ -163,16 +163,17 @@ public sealed class CdpAdapter : ITargetAdapter
                 var buffer = new byte[8192];
                 while (socket.State == WebSocketState.Open && !listenCts.IsCancellationRequested)
                 {
-                    var sb = new StringBuilder();
+                    using var message = new MemoryStream();
                     WebSocketReceiveResult res;
                     do
                     {
                         res = await socket.ReceiveAsync(buffer, listenCts.Token);
                         if (res.MessageType == WebSocketMessageType.Close) break;
-                        sb.Append(Encoding.UTF8.GetString(buffer, 0, res.Count));
+                        message.Write(buffer, 0, res.Count);
                     } while (!res.EndOfMessage);
                     if (res.MessageType == WebSocketMessageType.Close) break;
-                    DispatchResponse(sb.ToString());
+                    if (res.MessageType == WebSocketMessageType.Text)
+                        DispatchResponse(Encoding.UTF8.GetString(message.GetBuffer(), 0, checked((int)message.Length)));
                 }
             }
             catch
@@ -328,7 +329,7 @@ public sealed class CdpAdapter : ITargetAdapter
 
     public async ValueTask DisposeAsync()
     {
-        _disposed = true;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _listenCts?.Cancel();
         FailPendingCommands(new ObjectDisposedException(nameof(CdpAdapter)));
         await DisposeSocketAsync();

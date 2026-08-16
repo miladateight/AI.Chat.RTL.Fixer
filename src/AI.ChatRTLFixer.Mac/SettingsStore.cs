@@ -33,7 +33,7 @@ public sealed class SettingsStore : ISettingsStore
         {
             await using var fs = File.OpenRead(path);
             var s = await JsonSerializer.DeserializeAsync<AppSettings>(fs, _opts, ct);
-            return Migrate(s ?? new AppSettings());
+            return (s ?? new AppSettings()).Normalize();
         }
         catch (Exception ex)
         {
@@ -66,15 +66,4 @@ public sealed class SettingsStore : ISettingsStore
         }
     }
 
-    private static AppSettings Migrate(AppSettings s)
-    {
-        if (s.SchemaVersion < AppSettings.CurrentSchemaVersion)
-        {
-            s.SchemaVersion = AppSettings.CurrentSchemaVersion;
-        }
-        s.DiscoveryTimeoutSeconds = Math.Clamp(s.DiscoveryTimeoutSeconds, 2, 60);
-        s.InitialScanDelayMs = Math.Clamp(s.InitialScanDelayMs, 0, 10000);
-        s.ReconciliationIntervalSeconds = Math.Clamp(s.ReconciliationIntervalSeconds, 5, 60);
-        return s;
-    }
 }

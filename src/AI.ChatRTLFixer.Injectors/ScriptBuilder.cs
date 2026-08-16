@@ -79,7 +79,9 @@ public static class ScriptBuilder
         var prev = {
           dir: el.getAttribute('dir'),
           align: st.textAlign ? st.textAlign : null,
+          alignPriority: st.getPropertyPriority ? st.getPropertyPriority('text-align') : '',
           dirStyle: st.direction ? st.direction : null,
+          dirPriority: st.getPropertyPriority ? st.getPropertyPriority('direction') : '',
           ub: st.unicodeBidi ? st.unicodeBidi : null
         };
         if (registry) registry.set(el, prev); else el.__rtlfixerPrev = prev;
@@ -87,11 +89,11 @@ public static class ScriptBuilder
       el.setAttribute('data-rtlfixer', marker);
       el.setAttribute('dir', decision.direction);
       if (el.style) {
-        el.style.textAlign = decision.align;
-        // Inline direction + isolation makes the fix survive app stylesheets that
-        // hard-set `direction: ltr` on message nodes, and keeps embedded LTR runs
-        // (code, URLs, @handles) correctly ordered inside RTL paragraphs.
-        el.style.direction = decision.direction;
+        // Chat apps sometimes mark list alignment/direction as !important. Use
+        // the same priority while active, then restore the exact original value
+        // and priority so bullets and numbered items move with their RTL text.
+        el.style.setProperty('text-align', decision.align, 'important');
+        el.style.setProperty('direction', decision.direction, 'important');
         el.style.unicodeBidi = 'isolate';
       }
     }
@@ -102,8 +104,10 @@ public static class ScriptBuilder
       if (prev) {
         if (prev.dir === null) el.removeAttribute('dir'); else el.setAttribute('dir', prev.dir);
         if (el.style) {
-          el.style.textAlign = prev.align === null ? '' : prev.align;
-          el.style.direction = prev.dirStyle === null ? '' : prev.dirStyle;
+          if (prev.align === null) el.style.removeProperty('text-align');
+          else el.style.setProperty('text-align', prev.align, prev.alignPriority || '');
+          if (prev.dirStyle === null) el.style.removeProperty('direction');
+          else el.style.setProperty('direction', prev.dirStyle, prev.dirPriority || '');
           el.style.unicodeBidi = prev.ub === null ? '' : prev.ub;
         }
       } else {

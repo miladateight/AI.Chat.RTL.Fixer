@@ -40,6 +40,16 @@ public sealed class AppProfile
     /// <summary>CDP strategy for Electron apps. Null for non-Electron.</summary>
     public CdpStrategy? Cdp { get; set; }
 
+    /// <summary>
+    /// True when this profile can currently be selected and handled by the
+    /// runtime injector. Planned/unsupported entries remain useful for
+    /// detection and diagnostics, but should not be presented as usable apps.
+    /// </summary>
+    public bool SupportsRuntimeInjection =>
+        Status is not (SupportStatus.Unsupported or SupportStatus.Planned)
+        && UiTechnology == UiTechnology.Electron
+        && Cdp is not null;
+
     /// <summary>DOM selectors scoped to the chat surface only.</summary>
     public Selectors Selectors { get; set; } = new();
 

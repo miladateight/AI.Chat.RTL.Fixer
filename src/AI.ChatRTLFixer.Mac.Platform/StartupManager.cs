@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security;
 
 namespace AI.ChatRTLFixer.Mac;
 
@@ -22,6 +23,8 @@ public static class StartupManager
         var path = PlistPath;
         if (enabled)
         {
+            if (string.IsNullOrWhiteSpace(exePath))
+                throw new ArgumentException("The startup executable path is required.", nameof(exePath));
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, BuildPlist(exePath));
             RunLaunchctl($"load -w \"{path}\"");
@@ -36,7 +39,10 @@ public static class StartupManager
         }
     }
 
-    private static string BuildPlist(string exePath) =>
+    internal static string BuildPlist(string exePath)
+    {
+        var escapedPath = SecurityElement.Escape(exePath) ?? string.Empty;
+        return
         $"""
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -46,13 +52,14 @@ public static class StartupManager
             <string>{Label}</string>
             <key>ProgramArguments</key>
             <array>
-                <string>{exePath}</string>
+                <string>{escapedPath}</string>
             </array>
             <key>RunAtLoad</key>
             <true/>
         </dict>
         </plist>
         """;
+    }
 
     private static void RunLaunchctl(string args)
     {

@@ -9,7 +9,7 @@
 [English](README.md) · [فارسی](README.fa.md)
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0a1622)](#system-requirements)
-[![Version](https://img.shields.io/badge/version-1.0.2-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.2)
+[![Version](https://img.shields.io/badge/version-1.0.3-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.3)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 
 </div>
@@ -18,11 +18,11 @@ AI Chat RTL Fixer is a lightweight Windows tray app for Persian, Arabic, Hebrew,
 
 ## Download
 
-- Installer: [AIChatRTLFixerSetup-1.0.2.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.2/AIChatRTLFixerSetup-1.0.2.exe)
-- SHA-256: [AIChatRTLFixerSetup-1.0.2.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.2/AIChatRTLFixerSetup-1.0.2.exe.sha256)
+- Installer: [AIChatRTLFixerSetup-1.0.3.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.3/AIChatRTLFixerSetup-1.0.3.exe)
+- SHA-256: [AIChatRTLFixerSetup-1.0.3.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.0.3/AIChatRTLFixerSetup-1.0.3.exe.sha256)
 - [All releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
 
-## What 1.0.2 does
+## What 1.0.3 does
 
 - Starts quietly in the system tray; the installer selects **Start with Windows** by default.
 - Detects supported desktop apps at startup and when they open.
@@ -32,8 +32,12 @@ AI Chat RTL Fixer is a lightweight Windows tray app for Persian, Arabic, Hebrew,
 - Checks GitHub Releases at startup (or on demand from the tray). It never installs an update automatically; it opens the official release page only after confirmation.
 - Adds the Traycer desktop profile while excluding the separate Traycer CLI.
 - Keeps browser targeting off by default. The optional advanced setting makes browser detection and relaunch an explicit choice.
-- **Fixes a false-positive relaunch:** window-title detection no longer matches an unrelated window (e.g. a photo or document whose file name contains an app's name); a profile is only ever acted on once the user has explicitly enabled it under Settings → App profiles.
+- Makes setup easier: the main settings view now focuses on turning the fixer on, choosing usable apps and selecting chat appearance; technical options stay in a collapsed Advanced section.
+- Simplifies the tray menu by grouping update and diagnostic tools under Advanced, and shows clearer ready/paused/working status messages.
+- Hides planned or unsupported profiles from the selectable app list while retaining them for safe detection and diagnostics.
+- **Fixes a false-positive relaunch:** window-title detection no longer matches an unrelated window (e.g. a photo or document whose file name contains an app's name); a profile is only ever acted on once the user has explicitly enabled it under Settings → Choose your apps.
 - **Fixes the Settings window not responding to clicks** when opened from the tray icon.
+- **Improves reliability:** malformed settings are normalized safely, relaunch arguments are sanitized consistently, fragmented UTF-8 CDP messages are decoded correctly, and cancelled or failed connections are cleaned up.
 
 ## How it works
 
@@ -65,7 +69,7 @@ Experimental means a profile must still be verified against the installed target
 
 ## Install and run
 
-Run `AIChatRTLFixerSetup-1.0.2.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, creates a Start Menu shortcut and a standard uninstaller. "Start with Windows" is selected in setup and remains controllable in Settings. Portable framework-dependent and self-contained `win-x64` builds are also produced under `dist\`.
+Run `AIChatRTLFixerSetup-1.0.3.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, creates a Start Menu shortcut and a standard uninstaller. "Start with Windows" is selected in setup and remains controllable in Settings. Portable framework-dependent and self-contained `win-x64` builds are also produced under `dist\`.
 
 ## Build and package from source
 
@@ -84,11 +88,11 @@ Outputs:
 ```text
 dist\portable-framework-dependent\AI.ChatRTLFixer.Tray.exe
 dist\portable-self-contained-win-x64\AI.ChatRTLFixer.Tray.exe
-dist\installer\AIChatRTLFixerSetup-1.0.2.exe
-dist\installer\AIChatRTLFixerSetup-1.0.2.exe.sha256
+dist\installer\AIChatRTLFixerSetup-1.0.3.exe
+dist\installer\AIChatRTLFixerSetup-1.0.3.exe.sha256
 ```
 
-See [release notes](RELEASE_NOTES_v1.0.2.md) and [packaging documentation](docs/RELEASE.md).
+See [release notes](RELEASE_NOTES_v1.0.3.md) and [packaging documentation](docs/RELEASE.md).
 
 ## License
 

@@ -20,7 +20,7 @@ public static class StartupManager
     public static void SetEnabled(bool enabled, string exePath)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-        if (key is null) return;
+        if (key is null) throw new InvalidOperationException("The current-user startup registry key is unavailable.");
         if (enabled)
         {
             key.SetValue(ValueName, $"\"{exePath}\"");

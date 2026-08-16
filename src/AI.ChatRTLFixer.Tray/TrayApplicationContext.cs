@@ -33,7 +33,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             _uiContext.Post(_ => RebuildMenu(), null);
         };
 
-        _globalToggleItem = new ToolStripMenuItem("Enabled", null, (_, _) => ToggleGlobal());
+        _globalToggleItem = new ToolStripMenuItem("RTL Fixer on", null, (_, _) => ToggleGlobal());
 
         _notify = new NotifyIcon
         {
@@ -109,10 +109,12 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Mi("Settings...", OpenSettings));
-        menu.Items.Add(Mi("Open logs", OpenLogs));
-        menu.Items.Add(Mi("Export Detection Report", ExportDetectionReportAsync));
-        menu.Items.Add(Mi("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
-        menu.Items.Add(Mi("Reset runtime changes", async () => await _orchestrator.DisableAllAsync()));
+        var advanced = new ToolStripMenuItem("Advanced");
+        advanced.DropDownItems.Add(Mi("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
+        advanced.DropDownItems.Add(Mi("Open logs", OpenLogs));
+        advanced.DropDownItems.Add(Mi("Export detection report", ExportDetectionReportAsync));
+        advanced.DropDownItems.Add(Mi("Reset runtime changes", async () => await _orchestrator.DisableAllAsync()));
+        menu.Items.Add(advanced);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Mi("About", ShowAbout));
         menu.Items.Add(Mi("Exit", ExitApp));

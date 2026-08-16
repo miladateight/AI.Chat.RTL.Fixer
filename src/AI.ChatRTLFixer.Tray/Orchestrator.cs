@@ -65,7 +65,7 @@ public sealed class Orchestrator : IDisposable
                 Transition(entry, AppRuntimeState.DisabledByUser, "global-or-app-disabled");
                 return;
             }
-            if (profile.Status is SupportStatus.Unsupported or SupportStatus.Planned || profile.UiTechnology != UiTechnology.Electron || profile.Cdp is null)
+            if (!profile.SupportsRuntimeInjection)
             {
                 Transition(entry, AppRuntimeState.Unsupported, "profile-does-not-support-runtime-injection");
                 return;
@@ -168,7 +168,7 @@ public sealed class Orchestrator : IDisposable
 
     private async Task<RelaunchResult> RelaunchEntryAsync(RuntimeEntry entry, AppProfile profile, Func<RelaunchWarning, Task<bool>> consent)
     {
-        if (profile.Status is SupportStatus.Unsupported or SupportStatus.Planned || profile.Cdp is null)
+        if (!profile.SupportsRuntimeInjection)
         {
             Transition(entry, AppRuntimeState.Unsupported, "relaunch-not-permitted-for-profile");
             return new RelaunchResult { Success = false, UserConsented = false, Detail = "unsupported-profile" };
@@ -212,7 +212,12 @@ public sealed class Orchestrator : IDisposable
         {
             await AttachAsync(entry, profile, port, afterRelaunch);
             if (entry.State is AppRuntimeState.InjectionSucceeded or AppRuntimeState.InjectionFailed) return;
-            if (entry.State == AppRuntimeState.CdpUnsupported) { await Task.Delay(delay, entry.ExitToken).ContinueWith(_ => { }); delay = Math.Min(delay * 2, maxDelay); }
+            if (entry.State == AppRuntimeState.CdpUnsupported)
+            {
+                try { await Task.Delay(delay, entry.ExitToken); }
+                catch (OperationCanceledException) { return; }
+                delay = Math.Min(delay * 2, maxDelay);
+            }
         }
         // The newly-created process must expose the args. The watcher will update it if it appears.
         var current = _watcher.Snapshot().FirstOrDefault(x => x.AppId == entry.App.AppId && x.ProcessId != entry.App.ProcessId);
@@ -254,8 +259,25 @@ public sealed class Orchestrator : IDisposable
         if (entry is null) return;
         entry.ExitCts.Cancel();
         Transition(entry, AppRuntimeState.Exited, "process-exited");
-        _ = entry.Adapter?.DisposeAsync();
+        _ = DisposeEntryAdapterAsync(entry);
         StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static async Task DisposeEntryAdapterAsync(RuntimeEntry entry)
+    {
+        try
+        {
+            await entry.Gate.WaitAsync();
+            try
+            {
+                if (entry.Adapter is not null) await entry.Adapter.DisposeAsync();
+            }
+            finally
+            {
+                entry.Gate.Release();
+            }
+        }
+        catch (ObjectDisposedException) { }
     }
 
     public async Task DisableAllAsync()
@@ -392,6 +414,8 @@ public sealed class Orchestrator : IDisposable
     public void Dispose()
     {
         if (_disposed) return; _disposed = true; _watcher.Stop();
+        _watcher.AppChanged -= OnAppChanged;
+        _watcher.AppExited -= OnAppExited;
         foreach (var entry in Entries()) { entry.ExitCts.Cancel(); try { entry.Adapter?.DisposeAsync().AsTask().Wait(); } catch { } entry.Gate.Dispose(); entry.ExitCts.Dispose(); }
         _watcher.Dispose();
     }

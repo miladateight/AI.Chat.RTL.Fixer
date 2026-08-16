@@ -170,9 +170,8 @@ public sealed class RelaunchService : IRelaunchService
             if (space > 0) rest = rest[space..]; else rest = "";
         }
         // Remove any existing debug args to avoid duplicates.
-        var tokens = rest.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(t => !t.StartsWith("--remote-debugging", StringComparison.OrdinalIgnoreCase));
-        return tokens;
+        var tokens = rest.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return LaunchArgumentSanitizer.RemoveRemoteDebuggingArguments(tokens);
     }
 
     private static bool WaitForDebugArgs(int processId, int port, TimeSpan timeout)

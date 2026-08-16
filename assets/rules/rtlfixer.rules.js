@@ -83,14 +83,14 @@
   }
   RtlFixerRules.firstStrongDir = firstStrongDir;
 
-  // A chat message may start with a Latin product name (for example, a long
-  // model or workspace identifier) while the actual sentence that follows is
-  // Persian/Arabic/Hebrew. In that case a raw character ratio can be pulled
-  // below the threshold even though the prose is clearly RTL. Treat exactly
-  // one leading Latin word as a label when at least two RTL words follow it.
-  // This deliberately does not affect English prose containing a single RTL
-  // word, and technical whole-block detection still runs before this rule.
-  function hasRtlProseAfterLeadingLatinWord(text) {
+  // A chat message may start with one or more Latin product/model names while
+  // the actual sentence that follows is Persian/Arabic/Hebrew. Long Latin
+  // identifiers can pull the character ratio below the threshold even though
+  // the prose is clearly RTL. Prefer RTL only when RTL words outnumber all
+  // Latin words and there are at least two of them. This keeps English prose
+  // with a short RTL quote LTR; technical whole-block detection still runs
+  // before this rule.
+  function hasRtlProseAfterLeadingLatinText(text) {
     if (firstStrongDir(text) !== "ltr") return false;
     var words = text.match(/[A-Za-z\u00C0-\u024F]+|[\u0590-\u05FF\u0600-\u08FF\uFB1D-\uFEFF]+/g) || [];
     var latinWords = 0, rtlWords = 0;
@@ -98,7 +98,7 @@
       if (isRtlChar(words[i][0])) rtlWords++;
       else latinWords++;
     }
-    return latinWords === 1 && rtlWords >= 2;
+    return rtlWords >= 2 && rtlWords > latinWords;
   }
 
   // --- Technical text patterns (ES2018-safe: no lookbehind, no named groups)
@@ -170,6 +170,18 @@
     // Diff: requires a hunk header to avoid false-positing on markdown bullets.
     if (tokens.indexOf("diff") >= 0 && /@@ -\d+,\d+ \+\d+,\d+ @@/.test(text)) return true;
 
+    // A rendered list item such as "OpenAI: پاسخ فارسی" loses its Markdown
+    // bullet before textContent reaches us and resembles one line of YAML.
+    // Let clear RTL prose continue to the language classifier; retain protection
+    // for unmistakable one-line env/log/stack-trace records.
+    var unmistakableSingleLine = ["env", "stackTrace", "log"];
+    var hasUnmistakableSingleLineToken = tokens.some(function (t) {
+      return unmistakableSingleLine.indexOf(t) >= 0;
+    });
+    var looksLikeRtlProse = firstStrongDir(text) === "rtl" ||
+      rtlRatio(text) >= CFG.rtlRatio || hasRtlProseAfterLeadingLatinText(text);
+    if (lines.length === 1 && looksLikeRtlProse && !hasUnmistakableSingleLineToken) return false;
+
     // Key:value / structured / trace / diff / log line detector.
     var structuredLines = 0;
     for (var i = 0; i < lines.length; i++) {
@@ -204,7 +216,7 @@
     // clause catches Persian-first prose whose Latin product names / paths pull
     // the ratio just under the threshold — the common miss on coding assistants.
     if (ratio < CFG.rtlRatio && firstStrongDir(text) !== "rtl" &&
-        !hasRtlProseAfterLeadingLatinWord(text)) {
+        !hasRtlProseAfterLeadingLatinText(text)) {
       return { direction: "ltr", protected: false, align: "left", tokens: tokens, rtlRatio: ratio, length: len };
     }
 

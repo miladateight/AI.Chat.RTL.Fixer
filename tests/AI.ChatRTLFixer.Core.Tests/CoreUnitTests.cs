@@ -1,5 +1,6 @@
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Profiles;
+using AI.ChatRTLFixer.Core.Settings;
 using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Profiles;
 using AI.ChatRTLFixer.Win32;
@@ -83,6 +84,68 @@ public class CoreUnitTests
         Assert.False(settings.EnableBrowserTargets);
     }
 
+    [Fact]
+    public void Settings_Normalize_RepairsNullCollectionsAndInvalidRanges()
+    {
+        var settings = new AppSettings
+        {
+            SchemaVersion = 1,
+            Apps = null!,
+            LastKnownAppVersions = null!,
+            PortRange = null!,
+            DiscoveryTimeoutSeconds = -1,
+            ReconciliationIntervalSeconds = 999,
+            RelaunchCooldownSeconds = 0,
+            UiCulture = null!,
+        };
+
+        settings.Normalize();
+
+        Assert.NotNull(settings.Apps);
+        Assert.NotNull(settings.LastKnownAppVersions);
+        Assert.Equal(49152, settings.PortRange.Min);
+        Assert.Equal(65535, settings.PortRange.Max);
+        Assert.Equal(2, settings.DiscoveryTimeoutSeconds);
+        Assert.Equal(60, settings.ReconciliationIntervalSeconds);
+        Assert.Equal(10, settings.RelaunchCooldownSeconds);
+        Assert.Equal("en", settings.UiCulture);
+        Assert.Equal(AppSettings.CurrentSchemaVersion, settings.SchemaVersion);
+    }
+
+    [Fact]
+    public void LaunchArgumentSanitizer_RemovesEqualsAndSeparateDebugValues()
+    {
+        var sanitized = LaunchArgumentSanitizer.RemoveRemoteDebuggingArguments(
+        [
+            "--profile", "work",
+            "--remote-debugging-port", "9222",
+            "--remote-debugging-address=0.0.0.0",
+            "--remote-debugging-pipe",
+            "--keep",
+        ]);
+
+        Assert.Equal(["--profile", "work", "--keep"], sanitized);
+    }
+
+    [Fact]
+    public void MacRelaunchArguments_PreserveQuotedValuesAndRemoveOldDebugFlags()
+    {
+        const string executable = "/Applications/AI Chat.app/Contents/MacOS/AI Chat";
+        var arguments = AI.ChatRTLFixer.Mac.RelaunchService.ParseArgs(
+            executable + " --profile \"Work Account\" --remote-debugging-port 9222 --safe", executable);
+
+        Assert.Equal(["--profile", "Work Account", "--safe"], arguments);
+    }
+
+    [Fact]
+    public void MacStartupPlist_EscapesExecutablePathAsXml()
+    {
+        var plist = AI.ChatRTLFixer.Mac.StartupManager.BuildPlist("/Applications/AI & Chat <Beta>.app/Contents/MacOS/App");
+
+        Assert.Contains("AI &amp; Chat &lt;Beta&gt;.app", plist);
+        Assert.DoesNotContain("AI & Chat <Beta>.app", plist);
+    }
+
     [Theory]
     [InlineData("chrome.exe")]
     [InlineData("firefox")]
@@ -98,6 +161,39 @@ public class CoreUnitTests
         var registry = new ProfileRegistry();
         Assert.True(registry.TryMatchProcess("Traycer", out var profile));
         Assert.Equal("traycer", profile.AppId);
+    }
+
+    [Fact]
+    public void AppProfile_SupportsRuntimeInjection_OnlyForUsableElectronProfiles()
+    {
+        var usable = new AppProfile
+        {
+            Status = SupportStatus.Experimental,
+            UiTechnology = UiTechnology.Electron,
+            Cdp = new CdpStrategy(),
+        };
+        var planned = new AppProfile
+        {
+            Status = SupportStatus.Planned,
+            UiTechnology = UiTechnology.Electron,
+            Cdp = new CdpStrategy(),
+        };
+        var native = new AppProfile
+        {
+            Status = SupportStatus.Experimental,
+            UiTechnology = UiTechnology.Native,
+            Cdp = new CdpStrategy(),
+        };
+
+        Assert.True(usable.SupportsRuntimeInjection);
+        Assert.False(planned.SupportsRuntimeInjection);
+        Assert.False(native.SupportsRuntimeInjection);
+    }
+
+    [Fact]
+    public void ProductVersion_IsCurrentRelease()
+    {
+        Assert.Equal("1.0.3", Constants.AppVersion);
     }
 
     [Fact]

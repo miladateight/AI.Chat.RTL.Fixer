@@ -38,12 +38,16 @@ public class DirectionTests
         new object[] { "latin-first-path", "src/pdfsanitizer/app/widgets/ocr_panel.py — OCR mismatch را درست کرد", BlockDirection.Ltr, false },
 
         // A long Latin product/model name must not make a Persian sentence LTR.
-        // The first word is a label; the remaining natural-language words are RTL.
+        // The leading words are labels; the remaining natural-language words are RTL.
         new object[] { "latin-label-then-persian-prose", "OpenAIEnterpriseWorkspaceExperimentalPreview \u0627\u06CC\u0646 \u06CC\u06A9 \u062C\u0645\u0644\u0647 \u0641\u0627\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u0627\u0633\u062A.", BlockDirection.Rtl, false },
+        new object[] { "multiple-latin-labels-then-persian-prose", "OpenAIEnterpriseWorkspaceExperimentalPreview GPT-5: \u0627\u06CC\u0646 \u067E\u0627\u0633\u062E \u0641\u0627\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u0627\u0633\u062A.", BlockDirection.Rtl, false },
+        new object[] { "latin-yaml-like-label-then-persian-prose", "OpenAIEnterpriseWorkspaceExperimentalPreview: \u0627\u06CC\u0646 \u0645\u0648\u0631\u062F \u0641\u0627\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u0627\u0633\u062A", BlockDirection.Rtl, false },
+        new object[] { "english-prose-with-short-persian-quote", "This update fixes the issue called \u062E\u0637\u0627\u06CC \u0627\u062A\u0635\u0627\u0644", BlockDirection.Ltr, false },
 
         // Markdown Persian -> RTL (content-driven).
         new object[] { "md-heading", "# عنوان فارسی\nاین یک بخش فارسی است.", BlockDirection.Rtl, false },
         new object[] { "md-bullet", "- مورد اول فارسی\n- مورد دوم فارسی\n- مورد سوم", BlockDirection.Rtl, false },
+        new object[] { "md-bullet-with-latin-labels", "- OpenAIEnterpriseWorkspaceExperimentalPreview: \u067E\u0627\u0633\u062E \u0641\u0627\u0631\u0633\u06CC\n- GPT-5: \u0645\u062A\u0646 \u0641\u0627\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644", BlockDirection.Rtl, false },
         new object[] { "md-numbered", "1. قدم اول فارسی\n2. قدم دوم فارسی", BlockDirection.Rtl, false },
         new object[] { "md-blockquote", "> این یک نقل‌قول فارسی است.", BlockDirection.Rtl, false },
     };

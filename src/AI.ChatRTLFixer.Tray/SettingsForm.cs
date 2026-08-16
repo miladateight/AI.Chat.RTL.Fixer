@@ -30,8 +30,8 @@ public sealed class SettingsForm : Form
 
         Text = "AI Chat RTL Fixer";
         Font = new Font("Segoe UI", 9F);
-        ClientSize = new Size(580, 760);
-        MinimumSize = new Size(580, 560);
+        ClientSize = new Size(580, 690);
+        MinimumSize = new Size(580, 520);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -56,13 +56,13 @@ public sealed class SettingsForm : Form
 
         root.Controls.Add(BuildHeader());
 
-        var general = MakeSection("General");
+        var general = MakeSection("Quick setup");
         var global = new CheckBox
         {
-            Text = "Enable RTL Fixer",
+            Text = "Turn on RTL Fixer",
             Checked = settings.GlobalEnabled,
             AutoSize = true,
-            AccessibleName = "Enable RTL Fixer",
+            AccessibleName = "Turn on RTL Fixer",
         };
         global.CheckedChanged += async (_, _) =>
         {
@@ -75,7 +75,7 @@ public sealed class SettingsForm : Form
 
         var startup = new CheckBox
         {
-            Text = "Start with Windows",
+            Text = "Start automatically with Windows",
             Checked = settings.StartWithWindows,
             AutoSize = true,
             Margin = new Padding(0, 10, 0, 0),
@@ -84,10 +84,21 @@ public sealed class SettingsForm : Form
         startup.CheckedChanged += async (_, _) =>
         {
             if (_loading) return;
-            settings.StartWithWindows = startup.Checked;
-            try { StartupManager.SetEnabled(settings.StartWithWindows, Application.ExecutablePath); }
+            var previous = settings.StartWithWindows;
+            var requested = startup.Checked;
+            try
+            {
+                StartupManager.SetEnabled(requested, Application.ExecutablePath);
+                settings.StartWithWindows = StartupManager.IsEnabled();
+                if (settings.StartWithWindows != requested)
+                    throw new InvalidOperationException("Windows did not retain the requested startup setting.");
+            }
             catch (Exception ex)
             {
+                settings.StartWithWindows = previous;
+                _loading = true;
+                startup.Checked = previous;
+                _loading = false;
                 _logger.Log(LogLevel.Warning, LogCategories.App, "startup-set-failed", ("msg", SafeLogger.Redact(ex.Message)));
                 MessageBox.Show("Windows startup could not be updated. Please try again.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
@@ -109,7 +120,6 @@ public sealed class SettingsForm : Form
             settings.AutoRelaunchAfterConsent = autoRelaunch.Checked;
             await SaveAsync();
         };
-        general.Controls.Add(autoRelaunch);
 
         var browserTargets = new CheckBox
         {
@@ -136,7 +146,6 @@ public sealed class SettingsForm : Form
             await SaveAsync();
             UpdateStatus();
         };
-        general.Controls.Add(browserTargets);
 
         var updateChecks = new CheckBox
         {
@@ -152,12 +161,11 @@ public sealed class SettingsForm : Form
             settings.CheckForUpdatesOnStartup = updateChecks.Checked;
             await SaveAsync();
         };
-        general.Controls.Add(updateChecks);
 
         LayoutSection(general);
         root.Controls.Add(general);
 
-        var behavior = MakeSection("Chat behavior");
+        var behavior = MakeSection("Chat appearance");
         var behaviorGrid = new TableLayoutPanel
         {
             AutoSize = true,
@@ -213,10 +221,10 @@ public sealed class SettingsForm : Form
         LayoutSection(behavior);
         root.Controls.Add(behavior);
 
-        var profiles = MakeSection("App profiles");
+        var profiles = MakeSection("Choose your apps");
         profiles.Controls.Add(new Label
         {
-            Text = "Only enable profiles you recognize. Experimental profiles can change when the target app updates.",
+            Text = "Select the AI apps where you want RTL Fixer to work. Other detected apps are left untouched.",
             AutoSize = false,
             Width = 480,
             Height = 34,
@@ -232,16 +240,16 @@ public sealed class SettingsForm : Form
             BorderStyle = BorderStyle.FixedSingle,
             AccessibleName = "Enabled app profiles",
         };
-        foreach (var profile in _orchestrator.Profiles.OrderBy(profile => profile.DisplayName))
+        foreach (var profile in _orchestrator.Profiles
+                     .Where(profile => profile.SupportsRuntimeInjection)
+                     .OrderBy(profile => profile.DisplayName))
         {
             // Opt-in: a profile with no saved toggle yet has never been enabled by
             // the user, so the checkbox must start unchecked, not pre-ticked.
             var enabled = settings.Apps.TryGetValue(profile.AppId, out var toggle) && toggle.Enabled;
             profileList.Items.Add(new ProfileChoice(profile), enabled);
         }
-        // Size the list to show every profile so the last apps (OpenCode, ZCode)
-        // are visible without scrolling — otherwise they look unsupported.
-        profileList.Height = Math.Clamp(profileList.Items.Count * profileList.ItemHeight + 6, 190, 360);
+        profileList.Height = Math.Clamp(profileList.Items.Count * profileList.ItemHeight + 6, 150, 280);
         profileList.ItemCheck += (_, args) => BeginInvoke(async () =>
         {
             if (_loading || profileList.Items[args.Index] is not ProfileChoice choice) return;
@@ -253,6 +261,32 @@ public sealed class SettingsForm : Form
         profiles.Controls.Add(profileList);
         LayoutSection(profiles);
         root.Controls.Add(profiles);
+
+        var advancedToggle = new Button
+        {
+            Text = "Show advanced settings",
+            AutoSize = true,
+            FlatStyle = FlatStyle.Flat,
+            AccessibleName = "Show advanced settings",
+            Margin = new Padding(0, 0, 0, 6),
+        };
+        var advanced = MakeSection("Advanced settings");
+        advanced.Visible = false;
+        advanced.Controls.Add(autoRelaunch);
+        advanced.Controls.Add(browserTargets);
+        advanced.Controls.Add(updateChecks);
+        var checkUpdates = new Button { Text = "Check for updates now", AutoSize = true, AccessibleName = "Check for updates now", Margin = new Padding(0, 10, 0, 0) };
+        checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
+        advanced.Controls.Add(checkUpdates);
+        LayoutSection(advanced);
+        advancedToggle.Click += (_, _) =>
+        {
+            advanced.Visible = !advanced.Visible;
+            advancedToggle.Text = advanced.Visible ? "Hide advanced settings" : "Show advanced settings";
+            advancedToggle.AccessibleName = advancedToggle.Text;
+        };
+        root.Controls.Add(advancedToggle);
+        root.Controls.Add(advanced);
 
         var footer = new FlowLayoutPanel
         {
@@ -271,11 +305,8 @@ public sealed class SettingsForm : Form
             await SaveAsync();
             UpdateStatus();
         };
-        var checkUpdates = new Button { Text = "Check for updates", AutoSize = true, AccessibleName = "Check for updates" };
-        checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
         var close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.OK, AccessibleName = "Close settings" };
         footer.Controls.Add(restore);
-        footer.Controls.Add(checkUpdates);
         footer.Controls.Add(close);
         root.Controls.Add(footer);
 
@@ -295,7 +326,7 @@ public sealed class SettingsForm : Form
         });
         header.Controls.Add(new Label
         {
-            Text = "RTL only where it belongs: chat text stays readable, code stays LTR.",
+            Text = "Choose your apps once; Persian stays readable and code stays LTR.",
             AutoSize = true,
             ForeColor = Color.FromArgb(71, 85, 105),
             Location = new Point(0, 28),
@@ -350,14 +381,22 @@ public sealed class SettingsForm : Form
     private void UpdateStatus()
     {
         var attached = _orchestrator.RuntimeStatuses.Count(status => status.State == AppRuntimeState.InjectionSucceeded);
-        _statusValue.Text = _orchestrator.Settings.GlobalEnabled
-            ? attached > 0 ? $"Status: active in {attached} app{(attached == 1 ? string.Empty : "s")}" : "Status: enabled — waiting for a supported app"
-            : "Status: paused — no app is being modified";
+        var selected = _orchestrator.Profiles.Count(profile =>
+            profile.SupportsRuntimeInjection
+            && _orchestrator.Settings.Apps.TryGetValue(profile.AppId, out var toggle)
+            && toggle.Enabled);
+        _statusValue.Text = !_orchestrator.Settings.GlobalEnabled
+            ? "Paused — no app is being changed"
+            : attached > 0
+                ? $"Working in {attached} app{(attached == 1 ? string.Empty : "s")}"
+                : selected == 0
+                    ? "Choose at least one app below"
+                    : "Ready — open a selected app";
         _statusValue.ForeColor = _orchestrator.Settings.GlobalEnabled ? Color.FromArgb(13, 148, 136) : Color.FromArgb(100, 116, 139);
     }
 
     private sealed record ProfileChoice(AppProfile Profile)
     {
-        public override string ToString() => $"{Profile.DisplayName} — {Profile.Status}";
+        public override string ToString() => Profile.DisplayName;
     }
 }

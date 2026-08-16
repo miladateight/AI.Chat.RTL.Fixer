@@ -8,6 +8,9 @@ namespace AI.ChatRTLFixer.Core.Settings;
 /// </summary>
 public sealed class AppSettings
 {
+    private const int DefaultPortMin = 49152;
+    private const int DefaultPortMax = 65535;
+
     /// <summary>Schema version for forward migrations.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -78,6 +81,33 @@ public sealed class AppSettings
 
     /// <summary>UI culture code (e.g. "en"). v0.1 ships English UI.</summary>
     public string UiCulture { get; set; } = "en";
+
+    /// <summary>
+    /// Repairs values loaded from older, partially-written or manually edited
+    /// settings files before any runtime service consumes them.
+    /// </summary>
+    public AppSettings Normalize()
+    {
+        if (SchemaVersion < CurrentSchemaVersion) SchemaVersion = CurrentSchemaVersion;
+
+        Apps ??= new Dictionary<string, AppToggleState>();
+        LastKnownAppVersions ??= new Dictionary<string, string>();
+        PortRange ??= new PortRange();
+
+        DiscoveryTimeoutSeconds = Math.Clamp(DiscoveryTimeoutSeconds, 2, 60);
+        InitialScanDelayMs = Math.Clamp(InitialScanDelayMs, 0, 10000);
+        ReconciliationIntervalSeconds = Math.Clamp(ReconciliationIntervalSeconds, 5, 60);
+        RelaunchCooldownSeconds = Math.Clamp(RelaunchCooldownSeconds, 10, 3600);
+
+        if (PortRange.Min < 1 || PortRange.Max > 65535 || PortRange.Min > PortRange.Max)
+        {
+            PortRange.Min = DefaultPortMin;
+            PortRange.Max = DefaultPortMax;
+        }
+
+        if (string.IsNullOrWhiteSpace(UiCulture)) UiCulture = "en";
+        return this;
+    }
 }
 
 public sealed class AppToggleState

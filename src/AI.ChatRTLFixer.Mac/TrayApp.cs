@@ -76,7 +76,7 @@ public sealed class TrayApp
         _menu.Items.Clear();
         var settings = _orchestrator.Settings;
 
-        var toggle = new NativeMenuItem("Enabled") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = settings.GlobalEnabled };
+        var toggle = new NativeMenuItem("RTL Fixer on") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = settings.GlobalEnabled };
         toggle.Click += async (_, _) => await ToggleGlobalAsync();
         _menu.Add(toggle);
         _menu.Add(new NativeMenuItemSeparator());
@@ -109,10 +109,12 @@ public sealed class TrayApp
 
         _menu.Add(new NativeMenuItemSeparator());
         _menu.Add(Mi("Settings...", OpenSettings));
-        _menu.Add(Mi("Open logs", OpenLogs));
-        _menu.Add(MiAsync("Export Detection Report", ExportDetectionReportAsync));
-        _menu.Add(MiAsync("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
-        _menu.Add(MiAsync("Reset runtime changes", () => _orchestrator.DisableAllAsync()));
+        var advanced = new NativeMenuItem("Advanced") { Menu = new NativeMenu() };
+        advanced.Menu.Add(MiAsync("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
+        advanced.Menu.Add(Mi("Open logs", OpenLogs));
+        advanced.Menu.Add(MiAsync("Export detection report", ExportDetectionReportAsync));
+        advanced.Menu.Add(MiAsync("Reset runtime changes", () => _orchestrator.DisableAllAsync()));
+        _menu.Add(advanced);
         _menu.Add(new NativeMenuItemSeparator());
         _menu.Add(Mi("About", ShowAbout));
         _menu.Add(Mi("Exit", ExitApp));

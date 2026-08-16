@@ -11,9 +11,8 @@ using Avalonia.Media;
 namespace AI.ChatRTLFixer.Mac;
 
 /// <summary>
-/// Compact settings surface, ported control-for-control from the Windows
-/// SettingsForm: turning the fix on, choosing copy/font behavior, and
-/// enabling profiles.
+/// Compact settings surface shared conceptually with Windows: the common
+/// choices stay visible and technical controls live in a collapsed section.
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
@@ -47,8 +46,8 @@ public sealed partial class SettingsWindow : Window
 
         root.Children.Add(BuildHeader());
 
-        var general = MakeSection("General", out var generalBody);
-        var global = new CheckBox { Content = "Enable RTL Fixer", IsChecked = settings.GlobalEnabled };
+        var general = MakeSection("Quick setup", out var generalBody);
+        var global = new CheckBox { Content = "Turn on RTL Fixer", IsChecked = settings.GlobalEnabled };
         global.IsCheckedChanged += async (_, _) =>
         {
             if (_loading) return;
@@ -58,14 +57,25 @@ public sealed partial class SettingsWindow : Window
         };
         generalBody.Children.Add(global);
 
-        var startup = new CheckBox { Content = "Start at login", IsChecked = settings.StartWithWindows };
+        var startup = new CheckBox { Content = "Start automatically at login", IsChecked = settings.StartWithWindows };
         startup.IsCheckedChanged += async (_, _) =>
         {
             if (_loading) return;
-            settings.StartWithWindows = startup.IsChecked == true;
-            try { StartupManager.SetEnabled(settings.StartWithWindows, Environment.ProcessPath ?? string.Empty); }
+            var previous = settings.StartWithWindows;
+            var requested = startup.IsChecked == true;
+            try
+            {
+                StartupManager.SetEnabled(requested, Environment.ProcessPath ?? string.Empty);
+                settings.StartWithWindows = StartupManager.IsEnabled();
+                if (settings.StartWithWindows != requested)
+                    throw new InvalidOperationException("macOS did not retain the requested login setting.");
+            }
             catch (Exception ex)
             {
+                settings.StartWithWindows = previous;
+                _loading = true;
+                startup.IsChecked = previous;
+                _loading = false;
                 _logger.Log(LogLevel.Warning, LogCategories.App, "startup-set-failed", ("msg", SafeLogger.Redact(ex.Message)));
                 Dialogs.Warn(Title!, "Login item could not be updated. Please try again.");
             }
@@ -80,7 +90,6 @@ public sealed partial class SettingsWindow : Window
             settings.AutoRelaunchAfterConsent = autoRelaunch.IsChecked == true;
             await SaveAsync();
         };
-        generalBody.Children.Add(autoRelaunch);
 
         var browserTargets = new CheckBox { Content = "Enable browser targets (advanced; browser may be closed and reopened)", IsChecked = settings.EnableBrowserTargets };
         browserTargets.IsCheckedChanged += async (_, _) =>
@@ -102,7 +111,6 @@ public sealed partial class SettingsWindow : Window
             await SaveAsync();
             UpdateStatus();
         };
-        generalBody.Children.Add(browserTargets);
 
         var updateChecks = new CheckBox { Content = "Check GitHub for updates when the app starts", IsChecked = settings.CheckForUpdatesOnStartup };
         updateChecks.IsCheckedChanged += async (_, _) =>
@@ -111,10 +119,9 @@ public sealed partial class SettingsWindow : Window
             settings.CheckForUpdatesOnStartup = updateChecks.IsChecked == true;
             await SaveAsync();
         };
-        generalBody.Children.Add(updateChecks);
         root.Children.Add(general);
 
-        var behavior = MakeSection("Chat behavior", out var behaviorBody);
+        var behavior = MakeSection("Chat appearance", out var behaviorBody);
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("120,*"), RowDefinitions = new RowDefinitions("Auto,Auto"), RowSpacing = 8 };
 
         var fontLabel = new TextBlock { Text = "Chat font", VerticalAlignment = VerticalAlignment.Center };
@@ -150,18 +157,20 @@ public sealed partial class SettingsWindow : Window
         behaviorBody.Children.Add(grid);
         root.Children.Add(behavior);
 
-        var profilesSection = MakeSection("App profiles", out var profilesBody);
+        var profilesSection = MakeSection("Choose your apps", out var profilesBody);
         profilesBody.Children.Add(new TextBlock
         {
-            Text = "Only enable profiles you recognize. Experimental profiles can change when the target app updates.",
+            Text = "Select the AI apps where you want RTL Fixer to work. Other detected apps are left untouched.",
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
         });
         var profileList = new StackPanel { Spacing = 6 };
-        foreach (var profile in _orchestrator.Profiles.OrderBy(p => p.DisplayName))
+        foreach (var profile in _orchestrator.Profiles
+                     .Where(profile => profile.SupportsRuntimeInjection)
+                     .OrderBy(profile => profile.DisplayName))
         {
             var enabled = settings.Apps.TryGetValue(profile.AppId, out var toggle) && toggle.Enabled;
-            var checkBox = new CheckBox { Content = $"{profile.DisplayName} — {profile.Status}", IsChecked = enabled, Tag = profile };
+            var checkBox = new CheckBox { Content = profile.DisplayName, IsChecked = enabled, Tag = profile };
             checkBox.IsCheckedChanged += async (_, _) =>
             {
                 if (_loading) return;
@@ -175,6 +184,28 @@ public sealed partial class SettingsWindow : Window
         profilesBody.Children.Add(profileScroll);
         root.Children.Add(profilesSection);
 
+        var advancedBody = new StackPanel { Spacing = 10 };
+        advancedBody.Children.Add(autoRelaunch);
+        advancedBody.Children.Add(browserTargets);
+        advancedBody.Children.Add(updateChecks);
+        var checkUpdates = new Button { Content = "Check for updates now", HorizontalAlignment = HorizontalAlignment.Left };
+        checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
+        advancedBody.Children.Add(checkUpdates);
+        root.Children.Add(new Expander
+        {
+            Header = "Advanced settings",
+            IsExpanded = false,
+            Content = new Border
+            {
+                BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14),
+                Margin = new Thickness(0, 6, 0, 0),
+                Child = advancedBody,
+            },
+        });
+
         var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left };
         var restore = new Button { Content = "Restore and pause" };
         restore.Click += async (_, _) =>
@@ -186,12 +217,9 @@ public sealed partial class SettingsWindow : Window
             await SaveAsync();
             UpdateStatus();
         };
-        var checkUpdates = new Button { Content = "Check for updates" };
-        checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
         var close = new Button { Content = "Close" };
         close.Click += (_, _) => Close();
         footer.Children.Add(restore);
-        footer.Children.Add(checkUpdates);
         footer.Children.Add(close);
         root.Children.Add(footer);
 
@@ -205,7 +233,7 @@ public sealed partial class SettingsWindow : Window
         header.Children.Add(new TextBlock { Text = "AI Chat RTL Fixer", FontSize = 18, FontWeight = FontWeight.Bold });
         header.Children.Add(new TextBlock
         {
-            Text = "RTL only where it belongs: chat text stays readable, code stays LTR.",
+            Text = "Choose your apps once; Persian stays readable and code stays LTR.",
             Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
         });
         header.Children.Add(_statusValue);
@@ -245,9 +273,17 @@ public sealed partial class SettingsWindow : Window
     private void UpdateStatus()
     {
         var attached = _orchestrator.RuntimeStatuses.Count(status => status.State == AppRuntimeState.InjectionSucceeded);
-        _statusValue.Text = _orchestrator.Settings.GlobalEnabled
-            ? attached > 0 ? $"Status: active in {attached} app{(attached == 1 ? string.Empty : "s")}" : "Status: enabled — waiting for a supported app"
-            : "Status: paused — no app is being modified";
+        var selected = _orchestrator.Profiles.Count(profile =>
+            profile.SupportsRuntimeInjection
+            && _orchestrator.Settings.Apps.TryGetValue(profile.AppId, out var toggle)
+            && toggle.Enabled);
+        _statusValue.Text = !_orchestrator.Settings.GlobalEnabled
+            ? "Paused — no app is being changed"
+            : attached > 0
+                ? $"Working in {attached} app{(attached == 1 ? string.Empty : "s")}"
+                : selected == 0
+                    ? "Choose at least one app below"
+                    : "Ready — open a selected app";
         _statusValue.Foreground = new SolidColorBrush(_orchestrator.Settings.GlobalEnabled ? Color.FromRgb(13, 148, 136) : Color.FromRgb(100, 116, 139));
     }
 }
