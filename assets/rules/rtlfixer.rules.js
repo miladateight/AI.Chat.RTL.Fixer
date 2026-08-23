@@ -29,7 +29,17 @@
       [0xfb50, 0xfdff], [0xfe70, 0xfeff]     // Arabic
     ],
     rtlRatio: 0.30,
-    technicalRatio: 0.60
+    technicalRatio: 0.60,
+    // Consecutive RTL words that make a block count as RTL prose regardless of
+    // how much Latin text surrounds them. Three is the measured break-even: one
+    // or two RTL words in a row are a quoted term or a proper noun inside an
+    // English sentence, while three are a clause somebody wrote in Persian.
+    rtlRunWords: 3,
+    // Fallback weight for RTL words that never appear consecutively.
+    scatteredRtlRatio: 0.15,
+    // Share of lines that must look like source code before an unfenced block
+    // is treated as code.
+    codeLineRatio: 0.60
   };
 
   RtlFixerRules.setConfig = function (json) {
@@ -39,8 +49,12 @@
       });
     }
     if (json && json.thresholds) {
-      if (typeof json.thresholds.rtlRatio === "number") CFG.rtlRatio = json.thresholds.rtlRatio;
-      if (typeof json.thresholds.technicalRatio === "number") CFG.technicalRatio = json.thresholds.technicalRatio;
+      var t = json.thresholds;
+      if (typeof t.rtlRatio === "number") CFG.rtlRatio = t.rtlRatio;
+      if (typeof t.technicalRatio === "number") CFG.technicalRatio = t.technicalRatio;
+      if (typeof t.rtlRunWords === "number") CFG.rtlRunWords = t.rtlRunWords;
+      if (typeof t.scatteredRtlRatio === "number") CFG.scatteredRtlRatio = t.scatteredRtlRatio;
+      if (typeof t.codeLineRatio === "number") CFG.codeLineRatio = t.codeLineRatio;
     }
   };
 
@@ -83,23 +97,48 @@
   }
   RtlFixerRules.firstStrongDir = firstStrongDir;
 
-  // A chat message may start with one or more Latin product/model names while
-  // the actual sentence that follows is Persian/Arabic/Hebrew. Long Latin
-  // identifiers can pull the character ratio below the threshold even though
-  // the prose is clearly RTL. Prefer RTL only when RTL words outnumber all
-  // Latin words and there are at least two of them. This keeps English prose
-  // with a short RTL quote LTR; technical whole-block detection still runs
-  // before this rule.
-  function hasRtlProseAfterLeadingLatinText(text) {
-    if (firstStrongDir(text) !== "ltr") return false;
+  // Split a block into words and tag each one by script, tracking the longest
+  // CONSECUTIVE run of RTL words. The run length is the useful signal: two or
+  // more RTL words in a row is a clause someone actually wrote in that
+  // language, whereas a lone RTL word inside English prose is a quoted term.
+  function rtlWordStats(text) {
     var words = text.match(/[A-Za-z\u00C0-\u024F]+|[\u0590-\u05FF\u0600-\u08FF\uFB1D-\uFEFF]+/g) || [];
-    var latinWords = 0, rtlWords = 0;
+    var rtl = 0, latin = 0, run = 0, longestRun = 0;
     for (var i = 0; i < words.length; i++) {
-      if (isRtlChar(words[i][0])) rtlWords++;
-      else latinWords++;
+      if (isRtlChar(words[i][0])) {
+        rtl++; run++;
+        if (run > longestRun) longestRun = run;
+      } else {
+        latin++; run = 0;
+      }
     }
-    return rtlWords >= 2 && rtlWords > latinWords;
+    return { rtl: rtl, latin: latin, longestRtlRun: longestRun, total: words.length };
   }
+  RtlFixerRules.rtlWordStats = rtlWordStats;
+
+  // Does this block contain real RTL prose, no matter what precedes it?
+  //
+  // A chat answer is routinely Persian prose carrying a lot of Latin: product
+  // names, model names, API identifiers, English technical terms. Counting
+  // characters, or requiring RTL words to OUTNUMBER Latin words, misreads all of
+  // those as English and leaves the sentence left-aligned \u2014 the single most
+  // common complaint. So the test is not "which script wins" but "is there a
+  // stretch of RTL words here": scan the whole block to its end and accept it as
+  // RTL as soon as MIN consecutive RTL words appear anywhere in it.
+  //
+  // A single isolated RTL word does NOT qualify, which is what keeps English
+  // prose quoting one foreign term ("the Persian word for hello is \u0633\u0644\u0627\u0645")
+  // left-aligned. Technical whole-block detection still runs before this rule,
+  // so code, config and traces never reach it.
+  function hasRtlProse(text) {
+    var s = rtlWordStats(text);
+    if (s.rtl === 0) return false;
+    if (s.longestRtlRun >= CFG.rtlRunWords) return true;
+    // RTL words scattered as single words with no run: accept only when they
+    // still carry real weight in the block.
+    return s.rtl >= CFG.rtlRunWords && rtlRatio(text) >= CFG.scatteredRtlRatio;
+  }
+  RtlFixerRules.hasRtlProse = hasRtlProse;
 
   // --- Technical text patterns (ES2018-safe: no lookbehind, no named groups)
   var RE = {
@@ -149,13 +188,42 @@
   }
   RtlFixerRules.detectTokens = detectTokens;
 
+  // Does a single line look like source code rather than a sentence?
+  // Used only for MULTI-line blocks, so a prose line that happens to contain a
+  // word like "return" can never trip it on its own.
+  function looksLikeSourceLine(line) {
+    return /[;{}]\s*$/.test(line) ||                                  // ends in ; { }
+      /^\s*(\/\/|\/\*|\*\/|\*\s|#\s*(?:include|define|!)|<!--)/.test(line) ||  // comment openers
+      /=>|::|->|\+\+|--;|\breturn\s|\bawait\s/.test(line) ||          // operators/keywords
+      /^\s*(function|class|def|import|export|const|let|var|public|private|protected|static|void|async|if|for|while|switch|try|catch|elif|else|end|fn|struct|impl|package|namespace|using)\b[\s({:]/.test(line);
+  }
+
+  // An unfenced code block: several lines that are mostly source code. Chat apps
+  // usually wrap code in <pre>/<code>, which the runtime protects by selector,
+  // but unverified profiles fall back to a wider scan where no selector matches.
+  // Without this, a code snippet carrying Persian comments could be flipped.
+  function isUnfencedSourceCode(lines) {
+    if (lines.length < 2) return false;
+    var codeLines = 0;
+    for (var i = 0; i < lines.length; i++) {
+      if (looksLikeSourceLine(lines[i])) codeLines++;
+    }
+    return codeLines / lines.length >= CFG.codeLineRatio;
+  }
+
   // A block is "technical" if it is a fenced code block, or if it looks like a
   // whole structured config/trace/diff/log block rather than prose.
   function isTechnicalBlock(text, tokens) {
     // Fenced code block -> always technical.
     if (RE.codeFence.test(text)) return true;
 
-    var technicalTokens = ["json", "yaml", "xml", "toml", "ini", "env", "stackTrace", "diff", "log"];
+    // Unfenced multi-line source code -> technical, even when it carries RTL
+    // comments. Checked before the token gate below because source code does
+    // not reliably produce any of the config/trace/log tokens.
+    var allLines = text.split(/\n/).filter(function (l) { return l.trim().length > 0; });
+    if (isUnfencedSourceCode(allLines)) return true;
+
+    var technicalTokens = ["json", "yaml", "xml", "toml", "ini", "env", "stackTrace", "diff", "log", "command"];
     var hits = tokens.filter(function (t) { return technicalTokens.indexOf(t) >= 0; }).length;
     if (hits === 0) return false;
 
@@ -179,7 +247,7 @@
       return unmistakableSingleLine.indexOf(t) >= 0;
     });
     var looksLikeRtlProse = firstStrongDir(text) === "rtl" ||
-      rtlRatio(text) >= CFG.rtlRatio || hasRtlProseAfterLeadingLatinText(text);
+      rtlRatio(text) >= CFG.rtlRatio || hasRtlProse(text);
     if (lines.length === 1 && looksLikeRtlProse && !hasUnmistakableSingleLineToken) return false;
 
     // Key:value / structured / trace / diff / log line detector.
@@ -194,6 +262,8 @@
       if (/^\s*(\d{4}-\d{2}-\d{2}|\[\d{2}:\d{2}:\d{2}\]|INFO|WARN|ERROR|DEBUG)\b/i.test(l)) { structuredLines++; continue; }
       // toml section header
       if (/^\s*\[[A-Za-z0-9_.\-]+\]\s*$/.test(l)) { structuredLines++; continue; }
+      // shell prompt / package-manager invocation
+      if (RE.command.test("\n" + l)) { structuredLines++; continue; }
     }
     var structuredRatio = structuredLines / lines.length;
     return structuredRatio >= CFG.technicalRatio;
@@ -211,12 +281,13 @@
       return { direction: "ltr", protected: true, align: "left", tokens: tokens, rtlRatio: ratio, length: len };
     }
 
-    // A block is RTL if it is RTL-heavy (ratio over threshold) OR it simply
-    // begins with an RTL letter (first-strong, like dir="auto"). The second
-    // clause catches Persian-first prose whose Latin product names / paths pull
-    // the ratio just under the threshold — the common miss on coding assistants.
+    // A block is RTL if it is RTL-heavy (ratio over threshold), OR it simply
+    // begins with an RTL letter (first-strong, like dir="auto"), OR it contains
+    // a run of RTL words anywhere in it. The last clause is what makes the
+    // whole block get read to its end instead of letting a Latin opening word
+    // decide alignment for a sentence that is really Persian.
     if (ratio < CFG.rtlRatio && firstStrongDir(text) !== "rtl" &&
-        !hasRtlProseAfterLeadingLatinText(text)) {
+        !hasRtlProse(text)) {
       return { direction: "ltr", protected: false, align: "left", tokens: tokens, rtlRatio: ratio, length: len };
     }
 

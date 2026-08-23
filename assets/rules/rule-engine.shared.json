@@ -9,7 +9,13 @@
     { "name": "Hebrew", "from": "0x0590", "to": "0x05FF" },
     { "name": "Hebrew Presentation Forms", "from": "0xFB1D", "to": "0xFB4F" }
   ],
-  "thresholds": { "rtlRatio": 0.30, "technicalRatio": 0.60 },
+  "thresholds": {
+    "rtlRatio": 0.30,
+    "technicalRatio": 0.60,
+    "rtlRunWords": 3,
+    "scatteredRtlRatio": 0.15,
+    "codeLineRatio": 0.60
+  },
   "protectedTypes": [
     "codeBlock", "inlineCode", "command", "winPath", "linuxPath", "url",
     "json", "yaml", "xml", "toml", "ini", "env", "log", "stackTrace",

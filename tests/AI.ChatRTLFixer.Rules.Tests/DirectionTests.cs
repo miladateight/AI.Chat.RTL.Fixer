@@ -33,9 +33,10 @@ public class DirectionTests
         // Persian-first heading whose Latin product name pulls the RTL ratio just
         // under the threshold -> still RTL via first-strong (dir=auto behavior).
         new object[] { "persian-first-latin-heavy", "گزارش نهایی — PdfSanitizer 0.4.0 (Hardening & UX polish)", BlockDirection.Rtl, false },
-        // Latin/path-dominant line (RTL ratio well under threshold) with a short
-        // trailing Persian note -> LTR via first-strong + low ratio.
-        new object[] { "latin-first-path", "src/pdfsanitizer/app/widgets/ocr_panel.py — OCR mismatch را درست کرد", BlockDirection.Ltr, false },
+        // Path-dominant line whose sentence is nevertheless Persian: "… را درست
+        // کرد" is a Persian verb phrase, so the line reads right-to-left even
+        // though a file path opens it and the RTL character ratio stays low.
+        new object[] { "latin-first-path", "src/pdfsanitizer/app/widgets/ocr_panel.py — OCR mismatch را درست کرد", BlockDirection.Rtl, false },
 
         // A long Latin product/model name must not make a Persian sentence LTR.
         // The leading words are labels; the remaining natural-language words are RTL.
@@ -43,6 +44,26 @@ public class DirectionTests
         new object[] { "multiple-latin-labels-then-persian-prose", "OpenAIEnterpriseWorkspaceExperimentalPreview GPT-5: \u0627\u06CC\u0646 \u067E\u0627\u0633\u062E \u0641\u0627\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u0627\u0633\u062A.", BlockDirection.Rtl, false },
         new object[] { "latin-yaml-like-label-then-persian-prose", "OpenAIEnterpriseWorkspaceExperimentalPreview: \u0627\u06CC\u0646 \u0645\u0648\u0631\u062F \u0641\u0627\u0631\u0633\u06CC \u06A9\u0627\u0645\u0644 \u0627\u0633\u062A", BlockDirection.Rtl, false },
         new object[] { "english-prose-with-short-persian-quote", "This update fixes the issue called \u062E\u0637\u0627\u06CC \u0627\u062A\u0635\u0627\u0644", BlockDirection.Ltr, false },
+
+        // A block is read to its END: English may open and even dominate the
+        // sentence, but a run of Persian words anywhere in it decides direction.
+        // These are the everyday coding-assistant answers that used to stay
+        // left-aligned because Latin words simply outnumbered the Persian ones.
+        new object[] { "english-lead-then-persian-clause", "You should call the initialize method before running the worker thread تا درست کار کند.", BlockDirection.Rtl, false },
+        new object[] { "english-sentence-then-persian-tail", "Install the package and restart the application service now بعد امتحان کن.", BlockDirection.Rtl, false },
+        new object[] { "long-model-name-then-persian", "OpenAI GPT-5 Turbo Preview Enterprise Workspace: این پاسخ فارسی است.", BlockDirection.Rtl, false },
+        new object[] { "english-line-then-persian-lines", "Install it first.\nسپس تنظیمات را باز کن.\nو ذخیره کن.", BlockDirection.Rtl, false },
+        // One quoted RTL word inside English prose is a term, not a clause.
+        new object[] { "english-prose-with-one-persian-word", "The Persian word for hello is سلام.", BlockDirection.Ltr, false },
+
+        // Source code keeps its direction even when its COMMENTS are Persian.
+        // Reading the block to its end must never reach into code.
+        new object[] { "js-code-with-persian-comment", "// این مقدار را تغییر بده\nconst maxRetries = 5;\nif (x > 3) { run(); }", BlockDirection.Ltr, true },
+        new object[] { "python-code-with-persian-comment", "# مقدار پیش فرض را عوض کن\ndef run(x):\n    return x + 1", BlockDirection.Ltr, true },
+        new object[] { "csharp-code-with-persian-comment", "// سرویس را ثبت کن\npublic void Configure() {\n    services.Add();\n}", BlockDirection.Ltr, true },
+        new object[] { "shell-command-block", "$ git clone repo\n$ cd repo\n$ npm install", BlockDirection.Ltr, true },
+        // …but a Persian sentence that merely mentions a code keyword is prose.
+        new object[] { "persian-prose-with-code-keyword", "اگر مقدار درست بود return کن و بقیه را رها کن.", BlockDirection.Rtl, false },
 
         // Markdown Persian -> RTL (content-driven).
         new object[] { "md-heading", "# عنوان فارسی\nاین یک بخش فارسی است.", BlockDirection.Rtl, false },

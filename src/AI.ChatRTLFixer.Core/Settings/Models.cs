@@ -105,6 +105,19 @@ public sealed class AppSettings
             PortRange.Max = DefaultPortMax;
         }
 
+        // A hand-edited or truncated settings file must not leave an app marked
+        // as permanently attached while pointing at a port nothing listens on.
+        foreach (var toggle in Apps.Values)
+        {
+            if (toggle is null) continue;
+            var port = toggle.PersistentLaunchPort;
+            if (port is null or < 1 or > 65535)
+            {
+                toggle.PersistentLaunchPort = null;
+                toggle.PersistentLaunchConfigured = false;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(UiCulture)) UiCulture = "en";
         return this;
     }
@@ -120,6 +133,21 @@ public sealed class AppToggleState
     /// dialog's own Yes button — never inferred or defaulted to true.
     /// </summary>
     public bool RelaunchConsentGranted { get; set; }
+
+    /// <summary>
+    /// True once the user has explicitly asked for this app's shortcuts to carry
+    /// the loopback debugging flags permanently, so future sessions attach
+    /// without any close-and-reopen. Like <see cref="RelaunchConsentGranted"/>,
+    /// only ever set by the user's own confirmation — never inferred.
+    /// </summary>
+    public bool PersistentLaunchConfigured { get; set; }
+
+    /// <summary>
+    /// Fixed port written into this app's shortcuts. A shortcut is static, so
+    /// the port cannot be picked fresh on each run the way a one-off relaunch
+    /// does; null until <see cref="PersistentLaunchConfigured"/> is set.
+    /// </summary>
+    public int? PersistentLaunchPort { get; set; }
 }
 
 /// <summary>Inclusive port range for the random free CDP port picker.</summary>

@@ -1,14 +1,14 @@
 # Release and packaging
 
-AI Chat RTL Fixer 1.0.3 produces three release artifacts under `dist\`:
+AI Chat RTL Fixer 1.0.4 produces three release artifacts under `dist\`:
 
 | Output | Path | Notes |
 |---|---|---|
 | Portable, framework-dependent | `dist\portable-framework-dependent\` | Requires .NET 8 Desktop Runtime. |
 | Portable, self-contained | `dist\portable-self-contained-win-x64\` | No runtime prerequisite. |
-| Windows installer | `dist\installer\AIChatRTLFixerSetup-1.0.3.exe` | Inno Setup; bundles the self-contained build. |
+| Windows installer | `dist\installer\AIChatRTLFixerSetup-1.0.4.exe` | Inno Setup; bundles the self-contained build. |
 
-The installer SHA-256 is written beside the installer as `AIChatRTLFixerSetup-1.0.3.exe.sha256`.
+The installer SHA-256 is written beside the installer as `AIChatRTLFixerSetup-1.0.4.exe.sha256`.
 
 ## Prerequisites
 

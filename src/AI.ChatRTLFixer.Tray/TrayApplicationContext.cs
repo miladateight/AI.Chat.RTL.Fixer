@@ -114,6 +114,24 @@ public sealed class TrayApplicationContext : ApplicationContext
         advanced.DropDownItems.Add(Mi("Open logs", OpenLogs));
         advanced.DropDownItems.Add(Mi("Export detection report", ExportDetectionReportAsync));
         advanced.DropDownItems.Add(Mi("Reset runtime changes", async () => await _orchestrator.DisableAllAsync()));
+
+        // One-time setup that ends the close-and-reopen cycle: put the loopback
+        // debugging flags on the app's own shortcuts so every future start
+        // already exposes the endpoint and the fixer just attaches.
+        var persistent = new ToolStripMenuItem("Attach automatically from now on");
+        foreach (var status in _orchestrator.RuntimeStatuses)
+        {
+            var app = status.App;
+            if (string.IsNullOrEmpty(app.ExecutablePath)) continue;
+            var profile = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == app.AppId);
+            var display = profile?.DisplayName ?? app.AppId;
+            var configured = _orchestrator.Settings.Apps.TryGetValue(app.AppId, out var toggle) && toggle.PersistentLaunchConfigured;
+            persistent.DropDownItems.Add(configured
+                ? Mi($"{display} — turn off", () => SetPersistentLaunchAsync(app, display, enable: false))
+                : Mi($"{display} — set up…", () => SetPersistentLaunchAsync(app, display, enable: true)));
+        }
+        if (persistent.DropDownItems.Count > 0) advanced.DropDownItems.Add(persistent);
+
         menu.Items.Add(advanced);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Mi("About", ShowAbout));
@@ -183,6 +201,70 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (interactive)
             MessageBox.Show(result.Message, Constants.ProductName, MessageBoxButtons.OK,
                 result.Succeeded ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
+
+    /// <summary>
+    /// Adds or removes the loopback debugging flags on an app's own Windows
+    /// shortcuts. This is the setting that ends the close-and-reopen cycle: an
+    /// Electron app binds its debugging endpoint once at startup and nothing can
+    /// enable it on a process that is already running, so the only way to attach
+    /// without restarting anything is for the app to have been started with the
+    /// flags in the first place.
+    /// </summary>
+    private async Task SetPersistentLaunchAsync(DetectedApp app, string display, bool enable)
+    {
+        var exe = app.ExecutablePath;
+        if (string.IsNullOrEmpty(exe)) return;
+
+        var service = new ShortcutLaunchService(_logger);
+        var shortcuts = service.FindShortcuts(exe);
+        if (shortcuts.Count == 0)
+        {
+            MessageBox.Show(
+                $"No shortcut for {display} was found in your Start menu, Desktop or taskbar, so there is nothing to set up.\n\n" +
+                "Pin the app first, then try again.",
+                Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var writable = shortcuts.Count(s => !s.Location.EndsWith("(system-wide)", StringComparison.Ordinal));
+        if (enable)
+        {
+            var confirm = MessageBox.Show(
+                $"{display} will be started with local debugging enabled from now on.\n\n" +
+                $"This edits {writable} shortcut(s) you launch it from. The endpoint listens on " +
+                "127.0.0.1 only and is never reachable from outside this PC.\n\n" +
+                "After this, RTL Fixer attaches on its own and you will not have to close and reopen " +
+                $"{display} again. The session open right now still needs one last relaunch.\n\n" +
+                "Set this up?",
+                $"Attach to {display} automatically", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirm != DialogResult.Yes) return;
+        }
+
+        var port = PersistentLaunchFlags.DeriveStablePort(
+            app.AppId, _orchestrator.Settings.PortRange.Min, _orchestrator.Settings.PortRange.Max);
+        var result = enable ? service.Install(exe, port) : service.Remove(exe);
+
+        if (result.Success)
+        {
+            await _orchestrator.SetPersistentLaunchAsync(app.AppId, enable, enable ? port : null);
+            await _settingsStore.SaveAsync(_orchestrator.Settings, CancellationToken.None);
+            var skipped = result.Skipped.Count > 0
+                ? $"\n\n{result.Skipped.Count} system-wide shortcut(s) were left untouched — they need administrator rights."
+                : string.Empty;
+            MessageBox.Show(
+                enable
+                    ? $"Done. {result.Updated.Count} shortcut(s) updated.\n\nNext time you start {display} it will attach on its own.{skipped}"
+                    : $"Removed. {display} shortcuts are back to their original arguments.{skipped}",
+                Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        else
+        {
+            MessageBox.Show(
+                $"Could not update the shortcuts for {display} ({result.Detail ?? "unknown"}).\n\n" +
+                "Nothing was changed.",
+                Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private async Task RelaunchAppAsync(DetectedApp app)

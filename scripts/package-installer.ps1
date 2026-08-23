@@ -75,7 +75,17 @@ New-Item -ItemType Directory -Force -Path $installerOut | Out-Null
 & $iscc ".\installer\AI.ChatRTLFixer.iss"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$installer = Join-Path $installerOut "AIChatRTLFixerSetup-1.0.3.exe"
+# Read the version from the .iss itself rather than repeating it here. When this
+# was hardcoded, a release whose version had been bumped everywhere else still
+# hashed the PREVIOUS installer and published that checksum.
+$issPath = Join-Path $root "installer\AI.ChatRTLFixer.iss"
+$versionMatch = Select-String -Path $issPath -Pattern '^\s*#define\s+MyAppVersion\s+"([^"]+)"' |
+    Select-Object -First 1
+if (-not $versionMatch) { throw "Could not read MyAppVersion from $issPath." }
+$version = $versionMatch.Matches[0].Groups[1].Value
+Write-Output "Installer version: $version"
+
+$installer = Join-Path $installerOut "AIChatRTLFixerSetup-$version.exe"
 if (Test-Path $installer) {
     $hash = Get-FileHash -Algorithm SHA256 $installer
     $hashLine = "{0}  {1}" -f $hash.Hash.ToLowerInvariant(), (Split-Path -Leaf $installer)

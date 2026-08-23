@@ -291,6 +291,28 @@ public sealed class Orchestrator : IDisposable
     }
 
     /// <summary>Applies the global kill switch immediately to processes already detected.</summary>
+    /// <summary>
+    /// Records that an app's shortcuts now carry the loopback debugging flags
+    /// (or no longer do). Only the state is stored here — the shortcuts
+    /// themselves are rewritten by the platform's
+    /// <see cref="IPersistentLaunchService"/> before this is called, and only
+    /// after the user confirmed it.
+    /// </summary>
+    public async Task SetPersistentLaunchAsync(string appId, bool configured, int? port)
+    {
+        if (!_settings.Apps.TryGetValue(appId, out var toggle))
+        {
+            toggle = new AppToggleState();
+            _settings.Apps[appId] = toggle;
+        }
+        toggle.PersistentLaunchConfigured = configured;
+        toggle.PersistentLaunchPort = configured ? port : null;
+        _logger.Log(LogLevel.Information, LogCategories.Relaunch, "persistent-launch-set",
+            ("app", appId), ("configured", configured), ("port", port ?? 0));
+        await ReconcileExistingAsync();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task SetGlobalEnabledAsync(bool enabled)
     {
         _settings.GlobalEnabled = enabled;
