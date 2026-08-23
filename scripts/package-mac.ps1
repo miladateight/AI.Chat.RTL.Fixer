@@ -35,7 +35,14 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-$version = "1.0.3"
+# Read the version from Directory.Build.props, the single place it is declared.
+# Hardcoding it here meant a bumped release still stamped the previous version
+# into Info.plist and into the .pkg filename.
+$propsPath = Join-Path $root "Directory.Build.props"
+$versionMatch = Select-String -Path $propsPath -Pattern '<Version>([^<]+)</Version>' | Select-Object -First 1
+if (-not $versionMatch) { throw "Could not read <Version> from $propsPath." }
+$version = $versionMatch.Matches[0].Groups[1].Value
+Write-Output "Packaging version: $version"
 $bundleName = "AI Chat RTL Fixer.app"
 $executableName = "AI.ChatRTLFixer.Mac"
 $bundleId = "com.aichatrtlfixer.mac"

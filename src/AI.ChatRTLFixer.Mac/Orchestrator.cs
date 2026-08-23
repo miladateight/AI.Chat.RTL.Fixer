@@ -264,6 +264,27 @@ public sealed class Orchestrator : IDisposable
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Records that a target app now starts with the loopback debugging flags
+    /// (or no longer does). Only the state lives here — the login item itself is
+    /// written by <see cref="IPersistentLaunchService"/>, and only after the
+    /// user confirmed it.
+    /// </summary>
+    public async Task SetPersistentLaunchAsync(string appId, bool configured, int? port)
+    {
+        if (!_settings.Apps.TryGetValue(appId, out var toggle))
+        {
+            toggle = new AppToggleState();
+            _settings.Apps[appId] = toggle;
+        }
+        toggle.PersistentLaunchConfigured = configured;
+        toggle.PersistentLaunchPort = configured ? port : null;
+        _logger.Log(LogLevel.Information, LogCategories.Relaunch, "persistent-launch-set",
+            ("app", appId), ("configured", configured), ("port", port ?? 0));
+        await ReconcileExistingAsync();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task SetGlobalEnabledAsync(bool enabled)
     {
         _settings.GlobalEnabled = enabled;

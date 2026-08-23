@@ -114,6 +114,23 @@ public sealed class TrayApp
         advanced.Menu.Add(Mi("Open logs", OpenLogs));
         advanced.Menu.Add(MiAsync("Export detection report", ExportDetectionReportAsync));
         advanced.Menu.Add(MiAsync("Reset runtime changes", () => _orchestrator.DisableAllAsync()));
+
+        // One-time setup that ends the close-and-reopen cycle: a per-user
+        // LaunchAgent starts the app with its loopback debugging flags at login,
+        // so the fixer attaches on its own from the next session onward.
+        var persistent = new NativeMenuItem("Attach automatically from now on") { Menu = new NativeMenu() };
+        foreach (var status in _orchestrator.RuntimeStatuses)
+        {
+            var app = status.App;
+            if (string.IsNullOrEmpty(app.ExecutablePath)) continue;
+            var display = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == app.AppId)?.DisplayName ?? app.AppId;
+            var configured = _orchestrator.Settings.Apps.TryGetValue(app.AppId, out var appToggle) && appToggle.PersistentLaunchConfigured;
+            persistent.Menu!.Add(MiAsync(
+                configured ? $"{display} — turn off" : $"{display} — set up…",
+                () => SetPersistentLaunchAsync(app, display, enable: !configured)));
+        }
+        if (persistent.Menu!.Items.Count > 0) advanced.Menu.Add(persistent);
+
         _menu.Add(advanced);
         _menu.Add(new NativeMenuItemSeparator());
         _menu.Add(Mi("About", ShowAbout));
@@ -178,6 +195,49 @@ public sealed class TrayApp
         }
 
         if (interactive) Dialogs.Info(Constants.ProductName, result.Message);
+    }
+
+    /// <summary>
+    /// Installs or removes the per-user LaunchAgent that starts a target app
+    /// with its loopback debugging flags. An Electron app binds that endpoint
+    /// once at startup, so this is what lets later sessions attach with nothing
+    /// closed or reopened.
+    /// </summary>
+    private async Task SetPersistentLaunchAsync(DetectedApp app, string display, bool enable)
+    {
+        var exe = app.ExecutablePath;
+        if (string.IsNullOrEmpty(exe)) return;
+
+        if (enable)
+        {
+            var confirm = await Dialogs.ConfirmAsync(
+                $"Attach to {display} automatically",
+                $"A login item will start {display} with local debugging enabled from now on.\n\n" +
+                "The endpoint listens on 127.0.0.1 only and is never reachable from outside this Mac.\n\n" +
+                "From your next login onward, RTL Fixer attaches on its own. Note that reopening " +
+                $"{display} from the Dock during a session starts it without the flag, so that " +
+                "session still needs a relaunch.\n\nSet this up?");
+            if (!confirm) return;
+        }
+
+        var service = new LaunchAgentLaunchService(_logger);
+        var port = PersistentLaunchFlags.DeriveStablePort(
+            app.AppId, _orchestrator.Settings.PortRange.Min, _orchestrator.Settings.PortRange.Max);
+        var result = enable ? service.Install(exe, port) : service.Remove(exe);
+
+        if (result.Success)
+        {
+            await _orchestrator.SetPersistentLaunchAsync(app.AppId, enable, enable ? port : null);
+            await _settingsStore.SaveAsync(_orchestrator.Settings, CancellationToken.None);
+            Dialogs.Info(Constants.ProductName, enable
+                ? $"Done. {display} will attach on its own from your next login."
+                : $"Removed. The login item for {display} is gone.");
+        }
+        else
+        {
+            Dialogs.Warn(Constants.ProductName,
+                $"Could not update the login item for {display} ({result.Detail ?? "unknown"}). Nothing was changed.");
+        }
     }
 
     private async Task RelaunchAppAsync(DetectedApp app)

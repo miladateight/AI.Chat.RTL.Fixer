@@ -56,8 +56,21 @@ relaunch, and after that never again.
 - System-wide shortcuts under ProgramData are reported and left untouched rather
   than silently modified, since changing them would affect every account on the PC.
 
+**On macOS** the same menu installs a per-user login item under
+`~/Library/LaunchAgents` that starts the app with the flags, since macOS has no
+equivalent of a Windows shortcut carrying arguments — Launch Services opens an
+app bundle without argv, so there is nothing on the Dock icon to edit. From your
+next login onward the fixer attaches on its own. One honest limit: quitting the
+app and reopening it from the Dock mid-session starts it without the flag, so
+that session still needs a relaunch. Closing that gap would mean rewriting the
+target app's bundle to point at a wrapper binary, which breaks its code
+signature — this app does not modify other applications' bundles.
+
 ## Fixes
 
+- The macOS packaging script hardcoded the version, so a bumped release stamped
+  the previous one into `Info.plist` and into the `.pkg` filename. It now reads
+  `Directory.Build.props`, the single place the version is declared.
 - Thresholds in `rule-engine.shared.json` are read for real: `rtlRunWords`,
   `scatteredRtlRatio` and `codeLineRatio` join the existing ones instead of the
   engine falling back to hard-coded values.
@@ -66,6 +79,7 @@ relaunch, and after that never again.
 
 ## Verification
 
-122 automated tests pass, up from 93. The 29 new tests cover the alignment
-cases above, code blocks carrying Persian comments, and the persistent-launch
-argument handling (stable port, idempotent apply, clean removal).
+130 automated tests pass, up from 93. The 37 new tests cover the alignment
+cases above, code blocks carrying Persian comments, the persistent-launch
+argument handling (stable port, idempotent apply, clean removal) and the macOS
+login-item plist (argument order, XML escaping, stable labels).
