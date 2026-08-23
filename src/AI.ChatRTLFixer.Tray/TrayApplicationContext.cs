@@ -220,10 +220,19 @@ public sealed class TrayApplicationContext : ApplicationContext
         var shortcuts = service.FindShortcuts(exe);
         if (shortcuts.Count == 0)
         {
-            MessageBox.Show(
-                $"No shortcut for {display} was found in your Start menu, Desktop or taskbar, so there is nothing to set up.\n\n" +
-                "Pin the app first, then try again.",
-                Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // A packaged app has no shortcut to edit and never will, so telling
+            // the user to go and pin one would send them after something that
+            // cannot work.
+            var message = PersistentLaunchFlags.IsWindowsPackagedApp(exe)
+                ? $"{display} is installed from the Microsoft Store (an MSIX package), and Windows starts " +
+                  "those through package activation rather than from a shortcut. There is no shortcut " +
+                  "carrying arguments for this app — pinning it creates an app-list entry, not one — so " +
+                  "start-up flags cannot be attached to it.\n\n" +
+                  $"{display} still works normally: it just needs \"Relaunch with RTL Fix\" once per session."
+                : $"No shortcut for {display} was found in your Start menu, Desktop or taskbar, so there is " +
+                  "nothing to set up.\n\nPin the app first, then try again.";
+
+            MessageBox.Show(message, Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 

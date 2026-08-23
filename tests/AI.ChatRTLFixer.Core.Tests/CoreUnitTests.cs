@@ -1,3 +1,4 @@
+using System.Reflection;
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Profiles;
 using AI.ChatRTLFixer.Core.Settings;
@@ -190,10 +191,35 @@ public class CoreUnitTests
         Assert.False(native.SupportsRuntimeInjection);
     }
 
+    /// <summary>
+    /// Asserting the version against a LITERAL is what let a stale value ship:
+    /// the constant and the literal were bumped together, or neither was, so the
+    /// test agreed with itself while the built assembly said something else.
+    /// Compare against the assembly stamp instead — that is the value the
+    /// installer, the About dialog and the update check all have to agree on.
+    /// </summary>
     [Fact]
-    public void ProductVersion_IsCurrentRelease()
+    public void ProductVersion_MatchesTheBuiltAssembly()
     {
-        Assert.Equal("1.0.3", Constants.AppVersion);
+        var informational = typeof(Constants).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        Assert.False(string.IsNullOrWhiteSpace(informational), "assembly carries no informational version");
+
+        var plus = informational!.IndexOf('+');
+        var expected = plus >= 0 ? informational[..plus] : informational;
+        Assert.Equal(expected, Constants.AppVersion);
+    }
+
+    /// <summary>
+    /// The update checker parses this with Version.TryParse and compares it to
+    /// the newest published tag. A value it cannot parse silently disables
+    /// update checking altogether.
+    /// </summary>
+    [Fact]
+    public void ProductVersion_IsParseable()
+    {
+        Assert.True(Version.TryParse(Constants.AppVersion, out var parsed), Constants.AppVersion);
+        Assert.NotNull(parsed);
     }
 
     [Fact]

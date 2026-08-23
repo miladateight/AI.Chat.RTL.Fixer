@@ -70,6 +70,23 @@ public static class PersistentLaunchFlags
         ];
     }
 
+    /// <summary>
+    /// True when <paramref name="executablePath"/> belongs to a Windows packaged
+    /// (MSIX/Store) app, which lives under <c>Program Files\WindowsApps</c>.
+    ///
+    /// <para>
+    /// This matters because such an app has no .lnk to edit: Windows starts it
+    /// through package activation, and even its pinned tile resolves to an
+    /// AppsFolder entry rather than a shortcut carrying arguments. Persistent
+    /// launch flags therefore cannot be installed for it, and the UI needs to
+    /// say so instead of reporting a missing shortcut the user could go and
+    /// create.
+    /// </para>
+    /// </summary>
+    public static bool IsWindowsPackagedApp(string? executablePath)
+        => !string.IsNullOrWhiteSpace(executablePath) &&
+           executablePath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>True when <paramref name="arguments"/> already carries a debugging flag.</summary>
     public static bool HasRemoteDebuggingArguments(IEnumerable<string> arguments)
         => arguments.Count() != LaunchArgumentSanitizer.RemoveRemoteDebuggingArguments(arguments).Count;

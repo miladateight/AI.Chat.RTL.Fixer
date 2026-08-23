@@ -133,6 +133,29 @@ public class PersistentLaunchFlagsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => PersistentLaunchFlags.BuildDebugArguments(70000));
     }
 
+    /// <summary>
+    /// Store-installed chat apps are the common case on Windows, and they have
+    /// no shortcut to attach flags to. Getting this wrong means telling the user
+    /// to pin an app so a setup can find a shortcut that will never exist.
+    /// </summary>
+    [Theory]
+    [InlineData(@"C:\Program Files\WindowsApps\OpenAI.Codex_26.818.5345.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe")]
+    [InlineData(@"C:\PROGRAM FILES\WINDOWSAPPS\Some.Package_1.0_x64__abc\app.exe")]
+    public void IsWindowsPackagedApp_DetectsStoreInstalls(string path)
+    {
+        Assert.True(PersistentLaunchFlags.IsWindowsPackagedApp(path));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Users\Milad\AppData\Local\Programs\ZCode\ZCode.exe")]
+    [InlineData(@"C:\Program Files\AI Chat RTL Fixer\AI.ChatRTLFixer.Tray.exe")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void IsWindowsPackagedApp_LeavesOrdinaryInstallsAlone(string? path)
+    {
+        Assert.False(PersistentLaunchFlags.IsWindowsPackagedApp(path));
+    }
+
     [Fact]
     public void DeriveStablePort_RejectsAnEmptyAppId()
     {

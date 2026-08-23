@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace AI.ChatRTLFixer.Core;
 
 /// <summary>
@@ -9,8 +11,31 @@ public static class Constants
     /// <summary>Product display name.</summary>
     public const string ProductName = "AI Chat RTL Fixer";
 
-    /// <summary>Product version. Keep in sync with Directory.Build.props and the installer.</summary>
-    public const string AppVersion = "1.0.3";
+    /// <summary>
+    /// Product version, read from this assembly at runtime rather than repeated
+    /// as a literal. It feeds the About dialog, the launch log line and the
+    /// update check, so a stale value here makes a freshly installed build
+    /// report the PREVIOUS version and offer itself as an update forever.
+    /// The assembly stamp comes from &lt;Version&gt; in Directory.Build.props,
+    /// which is the one place the version is declared.
+    /// </summary>
+    public static string AppVersion { get; } = ReadAssemblyVersion();
+
+    private static string ReadAssemblyVersion()
+    {
+        var informational = typeof(Constants).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informational))
+        {
+            // Strip any "+<commit>" build metadata so the value stays parseable
+            // by Version.TryParse in the update checker.
+            var plus = informational.IndexOf('+');
+            return plus >= 0 ? informational[..plus] : informational;
+        }
+
+        return typeof(Constants).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+    }
 
     /// <summary>Folder name under %AppData% used for settings and logs.</summary>
     public const string AppDataFolder = "AIChatRTLFixer";
