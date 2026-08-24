@@ -19,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Font license note
------------------
-This project bundles the "Vazirmatn" typeface (Regular weight) for use in
-rendering RTL chat text. Vazirmatn is licensed under the SIL Open Font License
-1.1 (OFL), which is distinct from the project's MIT license. The full OFL text
-is available at https://openfontlicense.org. The bundled font file
-(Vazirmatn-Regular.ttf) is governed by the OFL and is NOT relicensed under MIT.
