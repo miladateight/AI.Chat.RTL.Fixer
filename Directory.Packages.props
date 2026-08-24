@@ -14,7 +14,7 @@
     <!-- JS engine for TEST/REFERENCE evaluator only (NOT referenced by runtime projects).
          Used by AI.ChatRTLFixer.Rules.Tests to execute the canonical rtlfixer.rules.js
          so unit tests exercise the exact same code injected at runtime. -->
-    <PackageVersion Include="Jint" Version="4.1.0" />
+    <PackageVersion Include="Jint" Version="4.16.1" />
     <!-- Playwright drives a real (headless) Chromium to test the injected script,
          MutationObserver, copy event, protected code blocks and restore cleanup
          against a mock DOM that mirrors an Electron chat surface. -->
