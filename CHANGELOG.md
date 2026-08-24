@@ -52,6 +52,31 @@ language defines every key, that none defines a key English does not, that
 language code falls back to Persian, and that no translation was left as a copy
 of the English source.
 
+## [1.1.2](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.2) — 2026-08-24
+
+Starting the fixer no longer closes a chat you are already in.
+
+### Remembered consent was being treated as standing permission
+
+Approving a relaunch once set a flag that let the app relaunch that same target
+automatically from then on, so it would not have to ask again. In practice that
+meant the fixer, on every start, would immediately close and reopen any approved
+app that happened to be open — including one the user was reading or typing in.
+No click was involved; simply launching the tray was enough.
+
+Remembered consent now applies only to an app that is opened *after* the fixer
+is already running. An app that was already open when the fixer started is one
+somebody is using right now, and a click from a previous session is not
+permission to close it. Those apps wait for a fresh confirmation, exactly as an
+app with no remembered consent does.
+
+The flag defaults to "not already running", so a wiring mistake fails towards
+asking rather than towards closing.
+
+### Verification
+
+173 automated tests pass, up from 171.
+
 ## [1.1.1](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.1) — 2026-08-24
 
 Tables are now fixed properly.

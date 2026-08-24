@@ -148,6 +148,9 @@ public sealed class ProcessWatcher : IProcessWatcher
                 DebugPort = port,
                 ParentProcessId = snapshot.ParentProcessId,
                 MatchReason = reason,
+                // Apps present at the first scan were already open before the
+                // fixer started, so remembered consent must not close them.
+                WasAlreadyRunning = initial,
             };
 
             bool changed;

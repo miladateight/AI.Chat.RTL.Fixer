@@ -91,7 +91,11 @@ public sealed class Orchestrator : IDisposable
             }
             Transition(entry, AppRuntimeState.RelaunchRequired, "requires-relaunch");
             var alreadyConsented = _settings.Apps.TryGetValue(app.AppId, out var toggle) && toggle.RelaunchConsentGranted;
-            if (_settings.AutoRelaunchAfterConsent && alreadyConsented)
+            // Remembered consent applies only to an app opened AFTER the fixer
+            // was running. An app that was already open is one the user is using
+            // right now, and closing it because of a click from a previous
+            // session is not something they asked for.
+            if (_settings.AutoRelaunchAfterConsent && alreadyConsented && !app.WasAlreadyRunning)
                 await RelaunchEntryAsync(entry, profile, _ => Task.FromResult(true));
             else
                 Transition(entry, AppRuntimeState.RelaunchPromptShown, "awaiting-user-consent");

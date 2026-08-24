@@ -32,6 +32,21 @@ public sealed class DetectedApp
     public string? FileDescription { get; init; }
     public string[] WindowTitles { get; init; } = [];
     public int? ParentProcessId { get; init; }
+
+    /// <summary>
+    /// True when this app was ALREADY running when the fixer started, rather
+    /// than being opened afterwards.
+    ///
+    /// <para>
+    /// Remembered relaunch consent must never apply to these. Consent was given
+    /// once, for one relaunch; treating it as standing permission means merely
+    /// starting the fixer closes a chat the user is in the middle of — and it
+    /// does so at every startup, with no click involved. An app opened while the
+    /// fixer is already running is a different case: nothing is interrupted by
+    /// restarting it immediately.
+    /// </para>
+    /// </summary>
+    public bool WasAlreadyRunning { get; init; }
 }
 
 /// <summary>Watches for supported AI desktop apps starting and exiting.</summary>

@@ -9,7 +9,7 @@
 [English](README.md) · [فارسی](README.fa.md)
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0a1622)](#system-requirements)
-[![Version](https://img.shields.io/badge/version-1.1.1-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.1)
+[![Version](https://img.shields.io/badge/version-1.1.2-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.2)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 
 </div>
@@ -18,11 +18,11 @@ AI Chat RTL Fixer is a lightweight Windows tray app for Persian, Arabic, Hebrew,
 
 ## Download
 
-- Installer: [AIChatRTLFixerSetup-1.1.1.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.1/AIChatRTLFixerSetup-1.1.1.exe)
-- SHA-256: [AIChatRTLFixerSetup-1.1.1.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.1/AIChatRTLFixerSetup-1.1.1.exe.sha256)
+- Installer: [AIChatRTLFixerSetup-1.1.2.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe)
+- SHA-256: [AIChatRTLFixerSetup-1.1.2.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe.sha256)
 - [All releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
 
-## What 1.1.1 does
+## What 1.1.2 does
 
 - Starts quietly in the system tray; the installer selects **Start with Windows** by default.
 - Detects supported desktop apps at startup and when they open.
@@ -69,7 +69,7 @@ Experimental means a profile must still be verified against the installed target
 
 ## Install and run
 
-Run `AIChatRTLFixerSetup-1.1.1.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, creates a Start Menu shortcut and a standard uninstaller. "Start with Windows" is selected in setup and remains controllable in Settings. Portable framework-dependent and self-contained `win-x64` builds are also produced under `dist\`.
+Run `AIChatRTLFixerSetup-1.1.2.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, creates a Start Menu shortcut and a standard uninstaller. "Start with Windows" is selected in setup and remains controllable in Settings. Portable framework-dependent and self-contained `win-x64` builds are also produced under `dist\`.
 
 ## Build and package from source
 
@@ -88,8 +88,8 @@ Outputs:
 ```text
 dist\portable-framework-dependent\AI.ChatRTLFixer.Tray.exe
 dist\portable-self-contained-win-x64\AI.ChatRTLFixer.Tray.exe
-dist\installer\AIChatRTLFixerSetup-1.1.1.exe
-dist\installer\AIChatRTLFixerSetup-1.1.1.exe.sha256
+dist\installer\AIChatRTLFixerSetup-1.1.2.exe
+dist\installer\AIChatRTLFixerSetup-1.1.2.exe.sha256
 ```
 
 See the [changelog](CHANGELOG.md) and the [packaging documentation](docs/RELEASE.md).

@@ -80,4 +80,32 @@ public class RelaunchSafetyTests
     {
         Assert.False(PackagedAppLauncher.IsAnyInstanceRunning(@"C:\nope\NoSuchAppAnywhere.exe"));
     }
+
+    /// <summary>
+    /// Remembered consent must never reach an app that was already open when the
+    /// fixer started. Consent was one click for one relaunch; treating it as
+    /// standing permission meant simply launching the fixer closed a chat the
+    /// user was in the middle of, at every startup, with no click involved.
+    /// </summary>
+    [Fact]
+    public void DetectedApp_DefaultsToNotAlreadyRunning()
+    {
+        var app = new AI.ChatRTLFixer.Core.Abstractions.DetectedApp
+        {
+            AppId = "x", ProcessId = 1, ProcessName = "x",
+        };
+        // Default false: only the watcher's first scan sets it, so a mistake in
+        // wiring fails towards asking rather than towards closing.
+        Assert.False(app.WasAlreadyRunning);
+    }
+
+    [Fact]
+    public void DetectedApp_CarriesTheAlreadyRunningFlag()
+    {
+        var app = new AI.ChatRTLFixer.Core.Abstractions.DetectedApp
+        {
+            AppId = "x", ProcessId = 1, ProcessName = "x", WasAlreadyRunning = true,
+        };
+        Assert.True(app.WasAlreadyRunning);
+    }
 }
