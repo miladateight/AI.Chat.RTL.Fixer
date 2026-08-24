@@ -8,9 +8,11 @@
 
 [English](README.md) · [فارسی](README.fa.md)
 
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0a1622)](#system-requirements)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-0a1622)](#download)
+[![macOS](https://img.shields.io/badge/macOS%20universal-0a1622)](#download)
 [![Version](https://img.shields.io/badge/version-1.1.2-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.2)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
+[![Build](https://github.com/miladateight/AI.Chat.RTL.Fixer/actions/workflows/ci-windows.yml/badge.svg)](https://github.com/miladateight/AI.Chat.RTL.Fixer/actions/workflows/ci-windows.yml)
 
 </div>
 
@@ -18,9 +20,14 @@ AI Chat RTL Fixer is a lightweight Windows tray app for Persian, Arabic, Hebrew,
 
 ## Download
 
-- Installer: [AIChatRTLFixerSetup-1.1.2.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe)
-- SHA-256: [AIChatRTLFixerSetup-1.1.2.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe.sha256)
-- [All releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
+| Platform | Download |
+| :-- | :-- |
+| Windows 10/11 | [AIChatRTLFixerSetup-1.1.2.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe) |
+| macOS, Intel and Apple Silicon | [AIChatRTLFixer-1.1.2-macos.pkg](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixer-1.1.2-macos.pkg) |
+
+Checksums for both files: [SHA256SUMS.txt](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/SHA256SUMS.txt) - [all releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
+
+**macOS:** the package is ad-hoc signed and not notarized by Apple, so Gatekeeper refuses it on a normal double-click. Verify the checksum, then Control-click the `.pkg` and choose **Open**, or allow it once under **System Settings > Privacy & Security**.
 
 ## What 1.1.2 does
 
@@ -96,4 +103,4 @@ See the [changelog](CHANGELOG.md) and the [packaging documentation](docs/RELEASE
 
 ## License
 
-The app is MIT licensed. It bundles Vazirmatn under the SIL Open Font License 1.1.
+The app is MIT licensed. Bundled components and their own terms are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

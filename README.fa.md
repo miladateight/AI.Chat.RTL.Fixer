@@ -2,15 +2,18 @@
 
 # AI Chat RTL Fixer 1.1.2
 
-ابزار سبک ویندوزی برای بهترکردن نمایش راست‌به‌چپ متن در بخش گفت‌وگوی برنامه‌های دسکتاپ هوش مصنوعی. فقط ناحیهٔ چت تغییر می‌کند؛ کد، دستورها، مسیر فایل، URL و متن انگلیسی چپ‌به‌راست و قابل‌کپی باقی می‌مانند.
+ابزار سبک ویندوز و مک برای بهترکردن نمایش راست‌به‌چپ متن در بخش گفت‌وگوی برنامه‌های دسکتاپ هوش مصنوعی. فقط ناحیهٔ چت تغییر می‌کند؛ کد، دستورها، مسیر فایل، URL و متن انگلیسی چپ‌به‌راست و قابل‌کپی باقی می‌مانند.
 
 [English](README.md) · [فارسی](README.fa.md)
 
 ## دانلود
 
-- نصب‌کننده: [AIChatRTLFixerSetup-1.1.2.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe)
-- SHA-256: [AIChatRTLFixerSetup-1.1.2.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe.sha256)
+- ویندوز ۱۰ و ۱۱: [AIChatRTLFixerSetup-1.1.2.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe)
+- مک (Intel و Apple Silicon): [AIChatRTLFixer-1.1.2-macos.pkg](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixer-1.1.2-macos.pkg)
+- چک‌سام هر دو فایل: [SHA256SUMS.txt](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/SHA256SUMS.txt)
 - [همهٔ نسخه‌ها](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
+
+**نکتهٔ مک:** بستهٔ مک با امضای ad-hoc ساخته شده و توسط اپل notarize نشده، بنابراین Gatekeeper با دوبار کلیک ساده اجازهٔ نصب نمی‌دهد. اول چک‌سام را بررسی کنید، بعد روی فایل `.pkg` کلیک راست (Control-click) کنید و **Open** را بزنید، یا یک‌بار از مسیر **System Settings › Privacy & Security** اجازه بدهید.
 
 ## قابلیت‌های نسخهٔ 1.1.2
 
