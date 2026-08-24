@@ -1,9 +1,9 @@
 # Changelog
 
 All notable changes to AI RTL Fixer, newest first.
-Each entry matches the corresponding [GitHub release](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases).
+Each entry matches the corresponding [GitHub release](https://github.com/miladateight/AI.RTL.Fixer/releases).
 
-## [1.0.6](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.6) — 2026-08-24
+## [1.0.6](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.0.6) — 2026-08-24
 
 Two changes aimed squarely at making the app understandable to the people it is
 for.
@@ -52,7 +52,7 @@ language defines every key, that none defines a key English does not, that
 language code falls back to Persian, and that no translation was left as a copy
 of the English source.
 
-## [1.1.2](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.2) — 2026-08-24
+## [1.1.2](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.1.2) — 2026-08-24
 
 Starting the fixer no longer closes a chat you are already in.
 
@@ -77,7 +77,7 @@ asking rather than towards closing.
 
 173 automated tests pass, up from 171.
 
-## [1.1.1](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.1) — 2026-08-24
+## [1.1.1](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.1.1) — 2026-08-24
 
 Tables are now fixed properly.
 
@@ -111,7 +111,7 @@ Latin identifiers — inside the live chat app: the table and all three headings
 classified right-to-left, the Persian cells right-to-left, and the two cells
 holding process identifiers left-to-right.
 
-## [1.1.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.0) — 2026-08-24
+## [1.1.0](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.1.0) — 2026-08-24
 
 A correctness release. Three defects made 1.0.6 unusable for anyone with more
 than one chat window open, and the right-to-left interface it had just gained
@@ -169,7 +169,7 @@ one ChatGPT window. Both Claude windows were correctly refused and left running;
 ChatGPT attached and injected without any relaunch; every process id was
 unchanged afterwards.
 
-## [1.0.5](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.5) — 2026-08-23
+## [1.0.5](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.0.5) — 2026-08-23
 
 A patch release on top of 1.0.4. Everything 1.0.4 introduced is unchanged; this
 fixes a version-reporting bug in that build and makes one message honest.
@@ -220,7 +220,7 @@ with `dir=rtl` and `unicode-bidi: isolate`, no code element was touched, and the
 shortcut setup was confirmed to write, stay idempotent on a second run, and
 restore the original arguments exactly on removal.
 
-## [1.0.4](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.4) — 2026-08-23
+## [1.0.4](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.0.4) — 2026-08-23
 
 Version 1.0.4 fixes the mistake behind most wrongly aligned answers, and removes
 the need to close and reopen a chat app on every session.
@@ -306,7 +306,7 @@ cases above, code blocks carrying Persian comments, the persistent-launch
 argument handling (stable port, idempotent apply, clean removal) and the macOS
 login-item plist (argument order, XML escaping, stable labels).
 
-## [1.0.3](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.3) — 2026-08-16
+## [1.0.3](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.0.3) — 2026-08-16
 
 Version 1.0.3 makes the app easier to understand while keeping its explicit opt-in and relaunch safety guarantees.
 
@@ -335,7 +335,7 @@ Version 1.0.3 makes the app easier to understand while keeping its explicit opt-
 - Browser targeting remains off by default and requires separate confirmation.
 - No telemetry or analytics were added; target-app traffic remains loopback-only.
 
-## [1.0.2](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.2) — 2026-07-26
+## [1.0.2](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.0.2) — 2026-07-26
 
 ### Highlights
 
@@ -360,7 +360,7 @@ The app is ad-hoc signed but not notarized yet (no Apple Developer ID), so macOS
 - Browser targets remain opt-in and never enabled by default.
 - The first relaunch of every target still requires explicit confirmation because unsaved work can be lost if an app is closed.
 
-## [1.0.1](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.1) — 2026-07-22
+## [1.0.1](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.0.1) — 2026-07-22
 
 ### Highlights
 
@@ -376,7 +376,7 @@ The app is ad-hoc signed but not notarized yet (no Apple Developer ID), so macOS
 - Browser targets are opt-in and never enabled by default.
 - The first relaunch of every target requires explicit confirmation because unsaved work can be lost if an app is closed.
 
-## [1.0.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.0) — 2026-07-21
+## [1.0.0](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.0.0) — 2026-07-21
 
 ### Highlights
 
@@ -398,7 +398,7 @@ The app is ad-hoc signed but not notarized yet (no Apple Developer ID), so macOS
 
 ChatGPT Desktop, Codex Desktop, Claude Desktop and ZCode are included as Electron runtime profiles. Profiles remain Experimental until they have been verified against each real app version. CLI-only tools such as Claude Code and Codex CLI intentionally remain out of scope because they do not provide a desktop chat surface to modify.
 
-## [0.5.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.5.0) — 2026-07-14
+## [0.5.0](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v0.5.0) — 2026-07-14
 
 This release fixes the fixer: the app could get permanently stuck "waiting for a
 local endpoint" and, even when attached, frequently touched nothing because a
@@ -487,7 +487,7 @@ Relaunch یک برنامهٔ هدف هرگز در اولین بار خودکار
 شدند، شامل یک تست جدید که تضمین می‌کند selector اشتباه دیگر مانع راست‌چین‌شدن متن
 فارسی نمی‌شود.
 
-## [0.4.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.4.0) — 2026-07-12 (pre-release)
+## [0.4.0](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v0.4.0) — 2026-07-12 (pre-release)
 
 A performance and footprint release. It keeps the attach-only runtime introduced
 in 0.3.0 (the fixer never launches, closes or restarts a target app) and makes the
@@ -555,7 +555,7 @@ a real installed application version.
 ابزار فقط به endpointهای محلی (127.0.0.1) یک فرایندِ از پیش در حال اجرا متصل می‌شود و
 هیچ‌گاه خودش debug endpoint فعال نمی‌کند.
 
-## [0.3.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.3.0) — 2026-07-12 (pre-release)
+## [0.3.0](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v0.3.0) — 2026-07-12 (pre-release)
 
 This release removes target-application relaunching and focuses on immediate,
 low-overhead attachment to an existing safe local endpoint.
@@ -611,7 +611,7 @@ installed application version.
 اگر برنامهٔ هدف endpoint محلی موجود نداشته باشد، ابزار به آن دست نمی‌زند و فقط
 وضعیت انتظار را نمایش می‌دهد. همهٔ 69 تست خودکار با موفقیت اجرا شده‌اند.
 
-## [0.2.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.2.0) — 2026-07-11 (pre-release)
+## [0.2.0](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v0.2.0) — 2026-07-11 (pre-release)
 
 **Fixes right-to-left (RTL) text rendering inside AI desktop chat apps — chat surface only; code, paths and commands stay LTR.**
 
@@ -691,7 +691,7 @@ Codex، ChatGPT کلاسیک، ZCode، OpenCode — تشخیص، ری‌لانچ
 
 </div>
 
-## [0.1.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v0.1.0) — 2026-07-10 (pre-release)
+## [0.1.0](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v0.1.0) — 2026-07-10 (pre-release)
 
 **Fixes right-to-left (RTL) text rendering inside AI desktop chat apps — chat surface only; code, paths and commands stay LTR.**
 

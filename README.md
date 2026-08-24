@@ -10,9 +10,9 @@
 
 [![Windows](https://img.shields.io/badge/Windows%2010%2F11-0a1622)](#download)
 [![macOS](https://img.shields.io/badge/macOS%20universal-0a1622)](#download)
-[![Version](https://img.shields.io/badge/version-1.1.2-7855ff)](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.2)
+[![Version](https://img.shields.io/badge/version-1.1.2-7855ff)](https://github.com/miladateight/AI.RTL.Fixer/releases/tag/v1.1.2)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
-[![Build](https://github.com/miladateight/AI.Chat.RTL.Fixer/actions/workflows/ci-windows.yml/badge.svg)](https://github.com/miladateight/AI.Chat.RTL.Fixer/actions/workflows/ci-windows.yml)
+[![Build](https://github.com/miladateight/AI.RTL.Fixer/actions/workflows/ci-windows.yml/badge.svg)](https://github.com/miladateight/AI.RTL.Fixer/actions/workflows/ci-windows.yml)
 
 </div>
 
@@ -22,10 +22,10 @@ AI RTL Fixer is a lightweight Windows tray app for Persian, Arabic, Hebrew, Urdu
 
 | Platform | Download |
 | :-- | :-- |
-| Windows 10/11 | [AIChatRTLFixerSetup-1.1.2.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe) |
-| macOS, Intel and Apple Silicon | [AIChatRTLFixer-1.1.2-macos.pkg](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixer-1.1.2-macos.pkg) |
+| Windows 10/11 | [AIChatRTLFixerSetup-1.1.2.exe](https://github.com/miladateight/AI.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixerSetup-1.1.2.exe) |
+| macOS, Intel and Apple Silicon | [AIChatRTLFixer-1.1.2-macos.pkg](https://github.com/miladateight/AI.RTL.Fixer/releases/download/v1.1.2/AIChatRTLFixer-1.1.2-macos.pkg) |
 
-Checksums for both files: [SHA256SUMS.txt](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.2/SHA256SUMS.txt) - [all releases](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
+Checksums for both files: [SHA256SUMS.txt](https://github.com/miladateight/AI.RTL.Fixer/releases/download/v1.1.2/SHA256SUMS.txt) - [all releases](https://github.com/miladateight/AI.RTL.Fixer/releases)
 
 **macOS:** the package is ad-hoc signed and not notarized by Apple, so Gatekeeper refuses it on a normal double-click. Verify the checksum, then Control-click the `.pkg` and choose **Open**, or allow it once under **System Settings > Privacy & Security**.
 

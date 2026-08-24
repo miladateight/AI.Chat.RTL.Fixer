@@ -47,7 +47,7 @@ public static class Constants
     public const string LogFileName = "rtlfixer.log";
 
     /// <summary>GitHub link placeholder (filled when the repo is published).</summary>
-    public const string GitHubLink = "https://github.com/miladateight/AI.Chat.RTL.Fixer";
+    public const string GitHubLink = "https://github.com/miladateight/AI.RTL.Fixer";
 
     /// <summary>No-telemetry statement shown in the UI and README.</summary>
     public const string NoTelemetryStatement =
@@ -56,7 +56,7 @@ public static class Constants
 
     /// <summary>Official GitHub Releases API endpoint used only for update checks.</summary>
     public const string GitHubLatestReleaseApi =
-        "https://api.github.com/repos/miladateight/AI.Chat.RTL.Fixer/releases/latest";
+        "https://api.github.com/repos/miladateight/AI.RTL.Fixer/releases/latest";
 
     /// <summary>HTML id of the injected style element that carries direction CSS.</summary>
     public const string CssStyleId = "rtlfixer-css";
