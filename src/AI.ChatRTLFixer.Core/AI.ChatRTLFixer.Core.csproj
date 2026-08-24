@@ -4,4 +4,13 @@
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 
+  <!-- Interface strings, one JSON file per language, embedded so the whole UI
+       travels inside the single self-contained executable. Satellite assemblies
+       would put a per-language folder next to the exe that the installer would
+       have to carry and that is easy to lose. Loc resolves them by the resource
+       name "AI.ChatRTLFixer.Core.Localization.Strings.<code>.json". -->
+  <ItemGroup>
+    <EmbeddedResource Include="Localization\Strings\*.json" />
+  </ItemGroup>
+
 </Project>

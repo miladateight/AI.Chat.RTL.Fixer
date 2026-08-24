@@ -109,7 +109,10 @@ public class CoreUnitTests
         Assert.Equal(2, settings.DiscoveryTimeoutSeconds);
         Assert.Equal(60, settings.ReconciliationIntervalSeconds);
         Assert.Equal(10, settings.RelaunchCooldownSeconds);
-        Assert.Equal("en", settings.UiCulture);
+        // Empty, not "en": an unset language is what triggers the first-run
+        // picker, so Normalize must not quietly answer that question.
+        Assert.Equal(string.Empty, settings.UiCulture);
+        Assert.False(settings.HasChosenLanguage);
         Assert.Equal(AppSettings.CurrentSchemaVersion, settings.SchemaVersion);
     }
 

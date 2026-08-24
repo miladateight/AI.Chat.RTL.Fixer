@@ -3,6 +3,55 @@
 All notable changes to AI Chat RTL Fixer, newest first.
 Each entry matches the corresponding [GitHub release](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases).
 
+## [1.0.6](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.6) — 2026-08-24
+
+Two changes aimed squarely at making the app understandable to the people it is
+for.
+
+### It speaks your language
+
+The interface is now available in Persian, Arabic, Hebrew, Urdu and English.
+Persian is the default. This tool exists for people who read right-to-left, so
+shipping it only in English asked exactly the wrong audience to read the wrong
+direction to configure it.
+
+The first run opens a language picker before anything else. Every language is
+listed in its own script — «فارسی», «العربية», «עברית», «اردو» — because someone
+who cannot read the current interface language still has to recognise their own,
+and "Persian" written in English does not help them. The choice can be changed
+any time from the top of Settings.
+
+Choosing a right-to-left language mirrors the interface itself, not just the
+text: labels, checkboxes and buttons all move to the right side of the window.
+
+### It tells you when it cannot work, and fixes it on the spot
+
+An app that is already open cannot be joined — it only offers its local
+connection when it starts — so the fix needs one relaunch. Until now the app
+said nothing about this on screen: the only way to discover it was to open the
+tray menu and find "Relaunch with RTL Fix", which is not where anyone looks when
+something simply appears not to work.
+
+Now:
+
+- A notification appears when an app is detected that cannot be fixed yet,
+  naming it. Clicking it opens Settings.
+- Settings shows a banner at the top, above everything else, that names the app,
+  explains *why* a relaunch is needed rather than just demanding one, and
+  carries the **Relaunch now** button itself.
+- The banner appears and disappears on its own as apps come and go.
+
+The confirmation still names the app and still warns about unsaved work. This is
+a shorter path to the existing consent flow, not a way around it.
+
+### Verification
+
+150 automated tests pass, up from 137. The 13 new tests check that every
+language defines every key, that none defines a key English does not, that
+`{0}`-style placeholders match English in all five languages, that an unknown
+language code falls back to Persian, and that no translation was left as a copy
+of the English source.
+
 ## [1.0.5](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.5) — 2026-08-23
 
 A patch release on top of 1.0.4. Everything 1.0.4 introduced is unchanged; this

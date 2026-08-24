@@ -1,5 +1,6 @@
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Abstractions;
+using AI.ChatRTLFixer.Core.Localization;
 using AI.ChatRTLFixer.Core.Profiles;
 using AI.ChatRTLFixer.Core.Settings;
 using AI.ChatRTLFixer.Diagnostics;
@@ -19,17 +20,26 @@ public sealed class SettingsForm : Form
     private readonly SafeLogger _logger;
     private readonly UpdateChecker _updateChecker;
     private readonly Label _statusValue = new();
+    private GroupBox? _attention;
+    private Label? _attentionText;
+    private Button? _relaunchButton;
     private bool _loading;
 
     public SettingsForm(Orchestrator orchestrator, ISettingsStore settingsStore, SafeLogger logger, UpdateChecker updateChecker)
     {
         _orchestrator = orchestrator;
+        // The window is usually already open when an app is detected, so the
+        // "needs attention" banner has to appear on its own rather than only
+        // when the user next clicks something.
+        _orchestrator.StateChanged += OnOrchestratorStateChanged;
         _settingsStore = settingsStore;
         _logger = logger;
         _updateChecker = updateChecker;
 
-        Text = "AI Chat RTL Fixer";
+        Text = Constants.ProductName;
         Font = new Font("Segoe UI", 9F);
+        RightToLeft = Loc.IsRtl ? RightToLeft.Yes : RightToLeft.No;
+        RightToLeftLayout = Loc.IsRtl;
         ClientSize = new Size(580, 690);
         MinimumSize = new Size(580, 520);
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -56,13 +66,77 @@ public sealed class SettingsForm : Form
 
         root.Controls.Add(BuildHeader());
 
-        var general = MakeSection("Quick setup");
+        // Anything blocking the fix sits directly under the header, with the
+        // action on it. Previously the only way to act was to find "Relaunch
+        // with RTL Fix" in the tray menu, which is not where someone looks when
+        // the app they just opened is not being fixed.
+        _attention = MakeSection(Loc.T("section.needsAttention"));
+        _attentionText = new Label
+        {
+            AutoSize = false,
+            Width = 480,
+            Height = 62,
+            ForeColor = Color.FromArgb(120, 53, 15),
+        };
+        _relaunchButton = new Button
+        {
+            Text = Loc.T("button.relaunchNow"),
+            AutoSize = true,
+            Margin = new Padding(0, 8, 0, 0),
+            AccessibleName = Loc.T("button.relaunchNow"),
+        };
+        _relaunchButton.Click += async (_, _) => await RelaunchPendingAsync();
+        _attention.Controls.Add(_attentionText);
+        _attention.Controls.Add(_relaunchButton);
+        _attention.BackColor = Color.FromArgb(254, 249, 231);
+        LayoutSection(_attention);
+        root.Controls.Add(_attention);
+
+        var general = MakeSection(Loc.T("section.quickSetup"));
+
+        var languageRow = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 0, 0, 4),
+        };
+        languageRow.Controls.Add(new Label
+        {
+            Text = Loc.T("language.label"),
+            AutoSize = true,
+            Margin = new Padding(0, 7, 8, 0),
+        });
+        var language = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 200,
+            AccessibleName = Loc.T("language.label"),
+        };
+        foreach (var option in UiLanguages.All) language.Items.Add(new LanguageChoice(option));
+        language.SelectedIndex = Math.Max(0, UiLanguages.All
+            .ToList().FindIndex(l => l.Code == Loc.Current.Code));
+        language.SelectedIndexChanged += async (_, _) =>
+        {
+            if (_loading || language.SelectedItem is not LanguageChoice choice) return;
+            if (choice.Language.Code == settings.UiCulture) return;
+            settings.UiCulture = choice.Language.Code;
+            Loc.SetLanguage(choice.Language.Code);
+            await SaveAsync();
+            // Rebuild rather than retranslate in place: switching between an RTL
+            // and an LTR language changes the layout direction of every control,
+            // which WinForms only applies cleanly when they are created again.
+            Controls.Clear();
+            Build();
+        };
+        languageRow.Controls.Add(language);
+        general.Controls.Add(languageRow);
         var global = new CheckBox
         {
-            Text = "Turn on RTL Fixer",
+            Text = Loc.T("toggle.enable"),
             Checked = settings.GlobalEnabled,
             AutoSize = true,
-            AccessibleName = "Turn on RTL Fixer",
+            AccessibleName = Loc.T("toggle.enable"),
         };
         global.CheckedChanged += async (_, _) =>
         {
@@ -75,11 +149,11 @@ public sealed class SettingsForm : Form
 
         var startup = new CheckBox
         {
-            Text = "Start automatically with Windows",
+            Text = Loc.T("toggle.startWithWindows"),
             Checked = settings.StartWithWindows,
             AutoSize = true,
             Margin = new Padding(0, 10, 0, 0),
-            AccessibleName = "Start with Windows",
+            AccessibleName = Loc.T("toggle.startWithWindows"),
         };
         startup.CheckedChanged += async (_, _) =>
         {
@@ -100,7 +174,7 @@ public sealed class SettingsForm : Form
                 startup.Checked = previous;
                 _loading = false;
                 _logger.Log(LogLevel.Warning, LogCategories.App, "startup-set-failed", ("msg", SafeLogger.Redact(ex.Message)));
-                MessageBox.Show("Windows startup could not be updated. Please try again.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(Loc.T("startup.failed"), Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             await SaveAsync();
         };
@@ -108,11 +182,11 @@ public sealed class SettingsForm : Form
 
         var autoRelaunch = new CheckBox
         {
-            Text = "Remember relaunch approval per app (skip asking again once you've said yes)",
+            Text = Loc.T("toggle.rememberRelaunch"),
             Checked = settings.AutoRelaunchAfterConsent,
             AutoSize = true,
             Margin = new Padding(0, 10, 0, 0),
-            AccessibleName = "Remember relaunch approval per app",
+            AccessibleName = Loc.T("toggle.rememberRelaunch"),
         };
         autoRelaunch.CheckedChanged += async (_, _) =>
         {
@@ -123,17 +197,17 @@ public sealed class SettingsForm : Form
 
         var browserTargets = new CheckBox
         {
-            Text = "Enable browser targets (advanced; browser may be closed and reopened)",
+            Text = Loc.T("toggle.browserTargets"),
             Checked = settings.EnableBrowserTargets,
             AutoSize = true,
             Margin = new Padding(0, 10, 0, 0),
-            AccessibleName = "Enable browser targets",
+            AccessibleName = Loc.T("toggle.browserTargets"),
         };
         browserTargets.CheckedChanged += async (_, _) =>
         {
             if (_loading) return;
             if (browserTargets.Checked && MessageBox.Show(
-                    "Browser targeting can detect supported pages in your browser. A relaunch requires a separate confirmation and may close and reopen that browser. Continue?",
+                    Loc.T("browser.confirm"),
                     Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
             {
                 _loading = true;
@@ -149,11 +223,11 @@ public sealed class SettingsForm : Form
 
         var updateChecks = new CheckBox
         {
-            Text = "Check GitHub for updates when the app starts",
+            Text = Loc.T("toggle.updateCheck"),
             Checked = settings.CheckForUpdatesOnStartup,
             AutoSize = true,
             Margin = new Padding(0, 10, 0, 0),
-            AccessibleName = "Check for updates on startup",
+            AccessibleName = Loc.T("toggle.updateCheck"),
         };
         updateChecks.CheckedChanged += async (_, _) =>
         {
@@ -165,7 +239,7 @@ public sealed class SettingsForm : Form
         LayoutSection(general);
         root.Controls.Add(general);
 
-        var behavior = MakeSection("Chat appearance");
+        var behavior = MakeSection(Loc.T("section.appearance"));
         var behaviorGrid = new TableLayoutPanel
         {
             AutoSize = true,
@@ -178,12 +252,12 @@ public sealed class SettingsForm : Form
         behaviorGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         behaviorGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        var fontLabel = new Label { Text = "Chat font", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 7, 8, 7) };
+        var fontLabel = new Label { Text = Loc.T("label.font"), AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 7, 8, 7) };
         var font = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
             Width = 250,
-            AccessibleName = "Chat font",
+            AccessibleName = Loc.T("label.font"),
         };
         var availableFonts = Enum.GetValues<FontChoice>().Where(choice => choice != FontChoice.Custom).ToArray();
         font.Items.AddRange(availableFonts.Cast<object>().ToArray());
@@ -196,12 +270,12 @@ public sealed class SettingsForm : Form
             await SaveAsync();
         };
 
-        var copyLabel = new Label { Text = "Copy mode", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 7, 8, 7) };
+        var copyLabel = new Label { Text = Loc.T("label.copyMode"), AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 7, 8, 7) };
         var copy = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
             Width = 250,
-            AccessibleName = "Copy mode",
+            AccessibleName = Loc.T("label.copyMode"),
         };
         copy.Items.AddRange(Enum.GetValues<CopyMode>().Cast<object>().ToArray());
         copy.SelectedItem = settings.CopyMode;
@@ -221,10 +295,10 @@ public sealed class SettingsForm : Form
         LayoutSection(behavior);
         root.Controls.Add(behavior);
 
-        var profiles = MakeSection("Choose your apps");
+        var profiles = MakeSection(Loc.T("section.chooseApps"));
         profiles.Controls.Add(new Label
         {
-            Text = "Select the AI apps where you want RTL Fixer to work. Other detected apps are left untouched.",
+            Text = Loc.T("text.chooseAppsHelp"),
             AutoSize = false,
             Width = 480,
             Height = 34,
@@ -238,7 +312,7 @@ public sealed class SettingsForm : Form
             Height = 190,
             IntegralHeight = false,
             BorderStyle = BorderStyle.FixedSingle,
-            AccessibleName = "Enabled app profiles",
+            AccessibleName = Loc.T("section.chooseApps"),
         };
         foreach (var profile in _orchestrator.Profiles
                      .Where(profile => profile.SupportsRuntimeInjection)
@@ -264,25 +338,25 @@ public sealed class SettingsForm : Form
 
         var advancedToggle = new Button
         {
-            Text = "Show advanced settings",
+            Text = Loc.T("button.showAdvanced"),
             AutoSize = true,
             FlatStyle = FlatStyle.Flat,
-            AccessibleName = "Show advanced settings",
+            AccessibleName = Loc.T("button.showAdvanced"),
             Margin = new Padding(0, 0, 0, 6),
         };
-        var advanced = MakeSection("Advanced settings");
+        var advanced = MakeSection(Loc.T("section.advanced"));
         advanced.Visible = false;
         advanced.Controls.Add(autoRelaunch);
         advanced.Controls.Add(browserTargets);
         advanced.Controls.Add(updateChecks);
-        var checkUpdates = new Button { Text = "Check for updates now", AutoSize = true, AccessibleName = "Check for updates now", Margin = new Padding(0, 10, 0, 0) };
+        var checkUpdates = new Button { Text = Loc.T("button.checkUpdates"), AutoSize = true, AccessibleName = Loc.T("button.checkUpdates"), Margin = new Padding(0, 10, 0, 0) };
         checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
         advanced.Controls.Add(checkUpdates);
         LayoutSection(advanced);
         advancedToggle.Click += (_, _) =>
         {
             advanced.Visible = !advanced.Visible;
-            advancedToggle.Text = advanced.Visible ? "Hide advanced settings" : "Show advanced settings";
+            advancedToggle.Text = advanced.Visible ? Loc.T("button.hideAdvanced") : Loc.T("button.showAdvanced");
             advancedToggle.AccessibleName = advancedToggle.Text;
         };
         root.Controls.Add(advancedToggle);
@@ -295,7 +369,7 @@ public sealed class SettingsForm : Form
             FlowDirection = FlowDirection.LeftToRight,
             Margin = new Padding(0, 4, 0, 0),
         };
-        var restore = new Button { Text = "Restore and pause", AutoSize = true, AccessibleName = "Restore current changes and pause" };
+        var restore = new Button { Text = Loc.T("button.restorePause"), AutoSize = true, AccessibleName = Loc.T("button.restorePause") };
         restore.Click += async (_, _) =>
         {
             await _orchestrator.SetGlobalEnabledAsync(false);
@@ -305,7 +379,7 @@ public sealed class SettingsForm : Form
             await SaveAsync();
             UpdateStatus();
         };
-        var close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.OK, AccessibleName = "Close settings" };
+        var close = new Button { Text = Loc.T("button.close"), AutoSize = true, DialogResult = DialogResult.OK, AccessibleName = Loc.T("button.close") };
         footer.Controls.Add(restore);
         footer.Controls.Add(close);
         root.Controls.Add(footer);
@@ -319,14 +393,14 @@ public sealed class SettingsForm : Form
         var header = new Panel { Width = 520, Height = 76, Margin = new Padding(0, 0, 0, 12) };
         header.Controls.Add(new Label
         {
-            Text = "AI Chat RTL Fixer",
+            Text = Constants.ProductName,
             Font = new Font(Font.FontFamily, 15F, FontStyle.Bold),
             AutoSize = true,
             Location = new Point(0, 0),
         });
         header.Controls.Add(new Label
         {
-            Text = "Choose your apps once; Persian stays readable and code stays LTR.",
+            Text = Loc.T("app.tagline"),
             AutoSize = true,
             ForeColor = Color.FromArgb(71, 85, 105),
             Location = new Point(0, 28),
@@ -359,6 +433,18 @@ public sealed class SettingsForm : Form
         section.Height = y + 12;
     }
 
+    private void OnOrchestratorStateChanged(object? sender, EventArgs e)
+    {
+        if (IsDisposed || Disposing || !IsHandleCreated) return;
+        try { BeginInvoke(UpdateStatus); } catch (ObjectDisposedException) { }
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _orchestrator.StateChanged -= OnOrchestratorStateChanged;
+        base.OnFormClosed(e);
+    }
+
     private async Task SaveAsync() => await _settingsStore.SaveAsync(_orchestrator.Settings, CancellationToken.None);
 
     private async Task CheckForUpdatesAsync()
@@ -367,7 +453,7 @@ public sealed class SettingsForm : Form
         if (result.IsUpdateAvailable)
         {
             var open = MessageBox.Show(
-                $"Version {result.LatestVersion} is available. Open the GitHub release page?",
+                Loc.T("update.available", result.LatestVersion?.ToString() ?? string.Empty),
                 Constants.ProductName, MessageBoxButtons.YesNo, MessageBoxIcon.Information);
             if (open == DialogResult.Yes && result.ReleasePage is not null)
                 UpdateChecker.OpenReleasePage(result.ReleasePage);
@@ -386,17 +472,86 @@ public sealed class SettingsForm : Form
             && _orchestrator.Settings.Apps.TryGetValue(profile.AppId, out var toggle)
             && toggle.Enabled);
         _statusValue.Text = !_orchestrator.Settings.GlobalEnabled
-            ? "Paused — no app is being changed"
+            ? Loc.T("status.paused")
             : attached > 0
-                ? $"Working in {attached} app{(attached == 1 ? string.Empty : "s")}"
+                ? Loc.T("status.working", attached)
                 : selected == 0
-                    ? "Choose at least one app below"
-                    : "Ready — open a selected app";
+                    ? Loc.T("status.chooseApp")
+                    : Loc.T("status.ready");
         _statusValue.ForeColor = _orchestrator.Settings.GlobalEnabled ? Color.FromArgb(13, 148, 136) : Color.FromArgb(100, 116, 139);
+        UpdateAttention();
+    }
+
+    /// <summary>
+    /// Shows or hides the banner that explains why an open app is not being
+    /// fixed yet. It names the app, says why a relaunch is needed rather than
+    /// just demanding one, and carries the button that performs it.
+    /// </summary>
+    private void UpdateAttention()
+    {
+        if (_attention is null || _attentionText is null || _relaunchButton is null) return;
+
+        var pending = _orchestrator.PendingRelaunch;
+        if (pending.Count == 0 || !_orchestrator.Settings.GlobalEnabled)
+        {
+            _attention.Visible = false;
+            return;
+        }
+
+        var names = pending
+            .Select(app => _orchestrator.Profiles.FirstOrDefault(p => p.AppId == app.AppId)?.DisplayName ?? app.AppId)
+            .Distinct()
+            .ToList();
+
+        var headline = names.Count == 1
+            ? Loc.T("relaunch.needed.one", names[0])
+            : Loc.T("relaunch.needed.many", names.Count);
+
+        _attentionText.Text = headline + "\n" + Loc.T("relaunch.why", string.Join(Loc.T("list.separator"), names));
+        _attention.Visible = true;
+    }
+
+    /// <summary>
+    /// Relaunches the apps that are detected but cannot be reached yet. The
+    /// confirmation still names the app and still warns about unsaved work: this
+    /// button is a shortcut to the existing consent flow, not a way around it.
+    /// </summary>
+    private async Task RelaunchPendingAsync()
+    {
+        var pending = _orchestrator.PendingRelaunch.ToList();
+        foreach (var app in pending)
+        {
+            var display = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == app.AppId)?.DisplayName ?? app.AppId;
+            Task<bool> Consent(RelaunchWarning warning)
+            {
+                var body = Loc.T("relaunch.why", display) + "\n\n" + Loc.T("relaunch.warnUnsaved", display);
+                var answer = MessageBox.Show(
+                    Loc.T("relaunch.confirmBody", body),
+                    Loc.T("relaunch.confirmTitle", display),
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                return Task.FromResult(answer == DialogResult.Yes);
+            }
+
+            var result = await _orchestrator.RelaunchAsync(app, Consent);
+            if (result.Success)
+                MessageBox.Show(Loc.T("relaunch.done", display), Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            else if (result.ManualReopen && result.ManualCommand is not null)
+                MessageBox.Show(Loc.T("relaunch.manualBody", result.ManualCommand), Loc.T("relaunch.manualTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            else if (result.UserConsented)
+                MessageBox.Show(Loc.T("relaunch.failed", display, result.Detail ?? "unknown"), Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        UpdateStatus();
     }
 
     private sealed record ProfileChoice(AppProfile Profile)
     {
         public override string ToString() => Profile.DisplayName;
+    }
+
+    private sealed record LanguageChoice(UiLanguage Language)
+    {
+        // Native name only, so the list stays readable whatever language the
+        // rest of the window is currently in.
+        public override string ToString() => Language.NativeName;
     }
 }

@@ -1,5 +1,6 @@
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Abstractions;
+using AI.ChatRTLFixer.Core.Localization;
 using AI.ChatRTLFixer.Core.Settings;
 using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Win32;
@@ -30,10 +31,10 @@ public sealed class TrayApplicationContext : ApplicationContext
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _orchestrator.StateChanged += (_, _) =>
         {
-            _uiContext.Post(_ => RebuildMenu(), null);
+            _uiContext.Post(_ => { RebuildMenu(); NotifyIfRelaunchNeeded(); }, null);
         };
 
-        _globalToggleItem = new ToolStripMenuItem("RTL Fixer on", null, (_, _) => ToggleGlobal());
+        _globalToggleItem = new ToolStripMenuItem(Loc.T("menu.on"), null, (_, _) => ToggleGlobal());
 
         _notify = new NotifyIcon
         {
@@ -77,7 +78,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _globalToggleItem.Checked = _orchestrator.Settings.GlobalEnabled;
 
         menu.Items.Add(new ToolStripSeparator());
-        var detected = new ToolStripMenuItem("Detected Apps");
+        var detected = new ToolStripMenuItem(Loc.T("detected.title"));
         foreach (var status in _orchestrator.RuntimeStatuses)
         {
             var profile = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == status.App.AppId);
@@ -96,7 +97,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (pending.Count > 0)
         {
             menu.Items.Add(new ToolStripSeparator());
-            var relaunchMenu = new ToolStripMenuItem("Relaunch with RTL Fix…");
+            var relaunchMenu = new ToolStripMenuItem(Loc.T("relaunch.menu"));
             foreach (var app in pending)
             {
                 var displayName = app.AppId;
@@ -108,17 +109,17 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(Mi("Settings...", OpenSettings));
-        var advanced = new ToolStripMenuItem("Advanced");
-        advanced.DropDownItems.Add(Mi("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
-        advanced.DropDownItems.Add(Mi("Open logs", OpenLogs));
-        advanced.DropDownItems.Add(Mi("Export detection report", ExportDetectionReportAsync));
-        advanced.DropDownItems.Add(Mi("Reset runtime changes", async () => await _orchestrator.DisableAllAsync()));
+        menu.Items.Add(Mi(Loc.T("button.settings"), OpenSettings));
+        var advanced = new ToolStripMenuItem(Loc.T("menu.advanced"));
+        advanced.DropDownItems.Add(Mi(Loc.T("button.checkUpdates"), () => CheckForUpdatesAsync(interactive: true)));
+        advanced.DropDownItems.Add(Mi(Loc.T("menu.openLogs"), OpenLogs));
+        advanced.DropDownItems.Add(Mi(Loc.T("menu.exportReport"), ExportDetectionReportAsync));
+        advanced.DropDownItems.Add(Mi(Loc.T("menu.resetRuntime"), async () => await _orchestrator.DisableAllAsync()));
 
         // One-time setup that ends the close-and-reopen cycle: put the loopback
         // debugging flags on the app's own shortcuts so every future start
         // already exposes the endpoint and the fixer just attaches.
-        var persistent = new ToolStripMenuItem("Attach automatically from now on");
+        var persistent = new ToolStripMenuItem(Loc.T("persistent.menu"));
         foreach (var status in _orchestrator.RuntimeStatuses)
         {
             var app = status.App;
@@ -127,16 +128,62 @@ public sealed class TrayApplicationContext : ApplicationContext
             var display = profile?.DisplayName ?? app.AppId;
             var configured = _orchestrator.Settings.Apps.TryGetValue(app.AppId, out var toggle) && toggle.PersistentLaunchConfigured;
             persistent.DropDownItems.Add(configured
-                ? Mi($"{display} — turn off", () => SetPersistentLaunchAsync(app, display, enable: false))
-                : Mi($"{display} — set up…", () => SetPersistentLaunchAsync(app, display, enable: true)));
+                ? Mi(Loc.T("persistent.turnOff", display), () => SetPersistentLaunchAsync(app, display, enable: false))
+                : Mi(Loc.T("persistent.setUp", display), () => SetPersistentLaunchAsync(app, display, enable: true)));
         }
         if (persistent.DropDownItems.Count > 0) advanced.DropDownItems.Add(persistent);
 
         menu.Items.Add(advanced);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(Mi("About", ShowAbout));
-        menu.Items.Add(Mi("Exit", ExitApp));
+        menu.Items.Add(Mi(Loc.T("button.about"), ShowAbout));
+        menu.Items.Add(Mi(Loc.T("button.exit"), ExitApp));
     }
+
+    /// <summary>
+    /// Tells the user, once per app, that something they just opened cannot be
+    /// fixed until it is relaunched — and opens Settings, where the explanation
+    /// and the button live, if they click the notification.
+    ///
+    /// <para>
+    /// Without this the app simply appeared not to work: nothing was wrong on
+    /// screen, and the only way to find out was to open the tray menu. Tracking
+    /// which apps have already been announced keeps the reconciliation loop from
+    /// popping the same balloon every few seconds.
+    /// </para>
+    /// </summary>
+    private void NotifyIfRelaunchNeeded()
+    {
+        if (!_orchestrator.Settings.GlobalEnabled) return;
+
+        var pending = _orchestrator.PendingRelaunch
+            .Select(app => app.AppId)
+            .Distinct()
+            .ToList();
+
+        // Forget apps that no longer need anything, so closing and reopening an
+        // app legitimately announces it again.
+        _announcedRelaunch.IntersectWith(pending);
+
+        var fresh = pending.Where(id => !_announcedRelaunch.Contains(id)).ToList();
+        if (fresh.Count == 0) return;
+        foreach (var id in fresh) _announcedRelaunch.Add(id);
+
+        var names = fresh
+            .Select(id => _orchestrator.Profiles.FirstOrDefault(p => p.AppId == id)?.DisplayName ?? id)
+            .ToList();
+
+        var text = names.Count == 1
+            ? Loc.T("relaunch.needed.one", names[0])
+            : Loc.T("relaunch.needed.many", names.Count);
+
+        _notify.BalloonTipClicked -= OnRelaunchBalloonClicked;
+        _notify.BalloonTipClicked += OnRelaunchBalloonClicked;
+        _notify.ShowBalloonTip(5000, Constants.ProductName, text, ToolTipIcon.Warning);
+    }
+
+    private void OnRelaunchBalloonClicked(object? sender, EventArgs e) => OpenSettings();
+
+    private readonly HashSet<string> _announcedRelaunch = new(StringComparer.OrdinalIgnoreCase);
 
     private static ToolStripMenuItem Mi(string text, Action handler)
         => new(text, null, (_, _) => handler());
@@ -224,13 +271,8 @@ public sealed class TrayApplicationContext : ApplicationContext
             // the user to go and pin one would send them after something that
             // cannot work.
             var message = PersistentLaunchFlags.IsWindowsPackagedApp(exe)
-                ? $"{display} is installed from the Microsoft Store (an MSIX package), and Windows starts " +
-                  "those through package activation rather than from a shortcut. There is no shortcut " +
-                  "carrying arguments for this app — pinning it creates an app-list entry, not one — so " +
-                  "start-up flags cannot be attached to it.\n\n" +
-                  $"{display} still works normally: it just needs \"Relaunch with RTL Fix\" once per session."
-                : $"No shortcut for {display} was found in your Start menu, Desktop or taskbar, so there is " +
-                  "nothing to set up.\n\nPin the app first, then try again.";
+                ? Loc.T("persistent.packaged", display)
+                : Loc.T("persistent.noShortcut", display);
 
             MessageBox.Show(message, Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
@@ -240,13 +282,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (enable)
         {
             var confirm = MessageBox.Show(
-                $"{display} will be started with local debugging enabled from now on.\n\n" +
-                $"This edits {writable} shortcut(s) you launch it from. The endpoint listens on " +
-                "127.0.0.1 only and is never reachable from outside this PC.\n\n" +
-                "After this, RTL Fixer attaches on its own and you will not have to close and reopen " +
-                $"{display} again. The session open right now still needs one last relaunch.\n\n" +
-                "Set this up?",
-                $"Attach to {display} automatically", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                Loc.T("persistent.confirmBodyWindows", display, writable),
+                Loc.T("persistent.confirmTitle", display), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (confirm != DialogResult.Yes) return;
         }
 
@@ -259,31 +296,36 @@ public sealed class TrayApplicationContext : ApplicationContext
             await _orchestrator.SetPersistentLaunchAsync(app.AppId, enable, enable ? port : null);
             await _settingsStore.SaveAsync(_orchestrator.Settings, CancellationToken.None);
             var skipped = result.Skipped.Count > 0
-                ? $"\n\n{result.Skipped.Count} system-wide shortcut(s) were left untouched — they need administrator rights."
+                ? Loc.T("persistent.skipped", result.Skipped.Count)
                 : string.Empty;
             MessageBox.Show(
                 enable
-                    ? $"Done. {result.Updated.Count} shortcut(s) updated.\n\nNext time you start {display} it will attach on its own.{skipped}"
-                    : $"Removed. {display} shortcuts are back to their original arguments.{skipped}",
+                    ? Loc.T("persistent.doneWindows", result.Updated.Count, display) + skipped
+                    : Loc.T("persistent.removed", display) + skipped,
                 Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         else
         {
             MessageBox.Show(
-                $"Could not update the shortcuts for {display} ({result.Detail ?? "unknown"}).\n\n" +
-                "Nothing was changed.",
+                Loc.T("persistent.failed", display, result.Detail ?? "unknown"),
                 Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
     private async Task RelaunchAppAsync(DetectedApp app)
     {
-        Func<RelaunchWarning, Task<bool>> consent = warning =>
+        var display = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == app.AppId)?.DisplayName ?? app.AppId;
+
+        Func<RelaunchWarning, Task<bool>> consent = _ =>
         {
-            var msg = $"{warning.Message}\n\nProceed with relaunch?";
+            // Say WHY before asking: an app that is already open cannot be
+            // joined, so the restart is the fix, not an inconvenience.
+            var body = Loc.T("relaunch.why", display) + "\n\n" + Loc.T("relaunch.warnUnsaved", display);
             // MessageBox.Show is thread-safe; the handler runs off the UI thread
             // via async void, which is fine for a modal box.
-            var dr = MessageBox.Show(msg, $"Relaunch {warning.AppDisplayName}",
+            var dr = MessageBox.Show(
+                Loc.T("relaunch.confirmBody", body),
+                Loc.T("relaunch.confirmTitle", display),
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             return Task.FromResult(dr == DialogResult.Yes);
         };
@@ -293,14 +335,13 @@ public sealed class TrayApplicationContext : ApplicationContext
             var result = await _orchestrator.RelaunchAsync(app, consent);
             if (result.Success)
             {
-                _notify.ShowBalloonTip(3000, Constants.ProductName,
-                    $"{app.AppId} relaunched with RTL Fix (port {result.DebugPort}).", ToolTipIcon.Info);
+                _notify.ShowBalloonTip(3000, Constants.ProductName, Loc.T("relaunch.done", display), ToolTipIcon.Info);
             }
             else if (result.ManualReopen && result.ManualCommand is not null)
             {
                 MessageBox.Show(
-                    $"Automatic relaunch was not possible. Please close the app and reopen it manually:\n\n{result.ManualCommand}",
-                    "Manual reopen required", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Loc.T("relaunch.manualBody", result.ManualCommand),
+                    Loc.T("relaunch.manualTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else if (!result.UserConsented)
             {
@@ -309,7 +350,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             else
             {
                 _notify.ShowBalloonTip(3000, Constants.ProductName,
-                    $"Relaunch of {app.AppId} failed: {result.Detail ?? "unknown"}.", ToolTipIcon.Warning);
+                    Loc.T("relaunch.failed", display, result.Detail ?? "unknown"), ToolTipIcon.Warning);
             }
         }
         catch (Exception ex)
@@ -335,14 +376,13 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private static string Readable(AppRuntimeState state) => state switch
     {
-        AppRuntimeState.RunningNoDebugPort => "Detected, waiting for local endpoint",
-        AppRuntimeState.RelaunchRequired or AppRuntimeState.RelaunchPromptShown => "Detected — click \"Relaunch with RTL Fix\" to enable",
-        AppRuntimeState.Relaunching => "Relaunching…",
-        AppRuntimeState.WaitingForCdp => "Relaunched, waiting for local endpoint",
-        AppRuntimeState.CdpUnsupported => "Detected, CDP unavailable",
-        AppRuntimeState.DebugArgsIgnored => "Detected, debug args ignored by app",
-        AppRuntimeState.InjectionSucceeded => "Attached",
-        AppRuntimeState.Unsupported => "Unsupported / Planned",
+        AppRuntimeState.RunningNoDebugPort => Loc.T("state.waitingEndpoint"),
+        AppRuntimeState.RelaunchRequired or AppRuntimeState.RelaunchPromptShown => Loc.T("state.needsRelaunch"),
+        AppRuntimeState.Relaunching or AppRuntimeState.WaitingForCdp => Loc.T("state.waitingEndpoint"),
+        AppRuntimeState.CdpUnsupported or AppRuntimeState.DebugArgsIgnored => Loc.T("state.needsRelaunch"),
+        AppRuntimeState.InjectionSucceeded => Loc.T("state.working"),
+        AppRuntimeState.DisabledByUser => Loc.T("state.disabled"),
+        AppRuntimeState.Unsupported => Loc.T("state.unsupported"),
         _ => state.ToString(),
     };
 
@@ -362,15 +402,8 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void ShowAbout()
     {
         MessageBox.Show(
-            $"{Constants.ProductName} v{Constants.AppVersion}\n\n" +
-            "A free and open-source Windows tray tool that improves RTL text " +
-            "rendering inside AI desktop chat applications. It focuses only on " +
-            "the chat area and keeps code, commands, paths and English text " +
-            "left-to-right.\n\n" +
-            "No telemetry or analytics. Optional update checks contact only GitHub; " +
-            "target-app communication stays on local loopback.\n\n" +
-            "GitHub: " + Constants.GitHubLink,
-            "About " + Constants.ProductName,
+            Loc.T("about.body", Constants.ProductName, Constants.AppVersion, Constants.GitHubLink),
+            Loc.T("button.about") + " — " + Constants.ProductName,
             MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 

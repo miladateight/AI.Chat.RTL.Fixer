@@ -79,8 +79,16 @@ public sealed class AppSettings
 
     public LogLevel LoggingLevel { get; set; } = LogLevel.Information;
 
-    /// <summary>UI culture code (e.g. "en"). v0.1 ships English UI.</summary>
-    public string UiCulture { get; set; } = "en";
+    /// <summary>
+    /// Interface language code (see <see cref="Localization.UiLanguages"/>).
+    /// Empty until the user has chosen one, which is what makes the first run
+    /// show the language picker instead of silently guessing.
+    /// </summary>
+    public string UiCulture { get; set; } = string.Empty;
+
+    /// <summary>True once the language picker has been answered.</summary>
+    [JsonIgnore]
+    public bool HasChosenLanguage => Localization.UiLanguages.IsSupported(UiCulture);
 
     /// <summary>
     /// Repairs values loaded from older, partially-written or manually edited
@@ -118,7 +126,13 @@ public sealed class AppSettings
             }
         }
 
-        if (string.IsNullOrWhiteSpace(UiCulture)) UiCulture = "en";
+        // Empty means "not chosen yet", which is what makes the first run ask.
+        // An unknown code (hand-edited file, or a language dropped from a later
+        // build) must not leave the UI half-translated: fall back to the default
+        // rather than keeping a code nothing can load.
+        UiCulture ??= string.Empty;
+        if (UiCulture.Length > 0 && !Localization.UiLanguages.IsSupported(UiCulture))
+            UiCulture = Localization.UiLanguages.DefaultCode;
         return this;
     }
 }
