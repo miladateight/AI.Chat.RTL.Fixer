@@ -1,4 +1,4 @@
-// rtlfixer.rules.js — CANONICAL rule engine for AI Chat RTL Fixer.
+// rtlfixer.rules.js — CANONICAL rule engine for AI RTL Fixer.
 //
 // This single file is the ONLY source of classification logic:
 //   1. It is embedded into AI.ChatRTLFixer.Rules as a resource.

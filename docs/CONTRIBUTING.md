@@ -1,4 +1,4 @@
-# Contributing to AI Chat RTL Fixer
+# Contributing to AI RTL Fixer
 
 Thank you for your interest. This project is small and focused, so contributions are welcome but must respect the project's strict scope.
 

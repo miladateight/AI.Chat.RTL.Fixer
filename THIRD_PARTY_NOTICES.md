@@ -1,6 +1,6 @@
 # Third-party notices
 
-AI Chat RTL Fixer itself is released under the MIT license in [LICENSE](LICENSE). The components below ship with the application under their own terms.
+AI RTL Fixer itself is released under the MIT license in [LICENSE](LICENSE). The components below ship with the application under their own terms.
 
 ## Vazirmatn (Regular)
 

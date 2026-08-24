@@ -29,7 +29,7 @@ jobs:
       - name: Launch smoke test
         run: |
           set -e
-          APP="dist/mac/bundle-universal/AI Chat RTL Fixer.app/Contents/MacOS/AI.ChatRTLFixer.Mac"
+          APP="dist/mac/bundle-universal/AI RTL Fixer.app/Contents/MacOS/AI.ChatRTLFixer.Mac"
           chmod +x "$APP"
           "$APP" &
           PID=$!

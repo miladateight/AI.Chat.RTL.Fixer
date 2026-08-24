@@ -1,8 +1,8 @@
-; Inno Setup script for AI Chat RTL Fixer.
+; Inno Setup script for AI RTL Fixer.
 ; Style mirrors the Key Fix / Net Doctor installers (Milad AT8).
 ; Build with: scripts\package-installer.ps1  (or ISCC.exe on this file directly)
 
-#define MyAppName "AI Chat RTL Fixer"
+#define MyAppName "AI RTL Fixer"
 #define MyAppExeName "AI.ChatRTLFixer.Tray.exe"
 #define MyOutputBaseFilename "AIChatRTLFixerSetup"
 #define MySourceDir "..\dist\portable-self-contained-win-x64"
@@ -54,7 +54,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "startup"; Description: "Start AI Chat RTL Fixer automatically when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
+Name: "startup"; Description: "Start AI RTL Fixer automatically when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
 
 [Files]
 Source: "{#MySourceDir}\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -88,7 +88,7 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    if MsgBox('Do you also want to delete AI Chat RTL Fixer user settings and logs?' + #13#10 +
+    if MsgBox('Do you also want to delete AI RTL Fixer user settings and logs?' + #13#10 +
               '(%AppData%\AIChatRTLFixer)', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
     begin
       DelTree(ExpandConstant('{userappdata}\AIChatRTLFixer'), True, True, True);

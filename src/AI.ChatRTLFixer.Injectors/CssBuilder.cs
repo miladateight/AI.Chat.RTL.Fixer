@@ -18,7 +18,7 @@ public static class CssBuilder
     public static string Build(Selectors selectors)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("/* AI Chat RTL Fixer — chat surface only. Scoped CSS. */");
+        sb.AppendLine("/* AI RTL Fixer — chat surface only. Scoped CSS. */");
 
         // Composer: set to LTR by default; the script flips to RTL while the
         // user types RTL text.

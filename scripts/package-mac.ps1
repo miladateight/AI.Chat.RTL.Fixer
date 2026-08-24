@@ -43,7 +43,7 @@ $versionMatch = Select-String -Path $propsPath -Pattern '<Version>([^<]+)</Versi
 if (-not $versionMatch) { throw "Could not read <Version> from $propsPath." }
 $version = $versionMatch.Matches[0].Groups[1].Value
 Write-Output "Packaging version: $version"
-$bundleName = "AI Chat RTL Fixer.app"
+$bundleName = "AI RTL Fixer.app"
 $executableName = "AI.ChatRTLFixer.Mac"
 $bundleId = "com.aichatrtlfixer.mac"
 $project = Join-Path $root "src\AI.ChatRTLFixer.Mac\AI.ChatRTLFixer.Mac.csproj"
@@ -56,9 +56,9 @@ function New-InfoPlist([string]$path) {
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>AI Chat RTL Fixer</string>
+    <string>AI RTL Fixer</string>
     <key>CFBundleDisplayName</key>
-    <string>AI Chat RTL Fixer</string>
+    <string>AI RTL Fixer</string>
     <key>CFBundleIdentifier</key>
     <string>$bundleId</string>
     <key>CFBundleVersion</key>

@@ -7,7 +7,7 @@ Two **source** logos live here. Everything else is generated from them by
 
 | File | What it is | Requirements |
 |------|------------|--------------|
-| `app-logo.png` | The **AI Chat RTL Fixer** application logo (the dark chat-bubble mark) | Square PNG, transparent background, **512×512 or larger** |
+| `app-logo.png` | The **AI RTL Fixer** application logo (the dark chat-bubble mark) | Square PNG, transparent background, **512×512 or larger** |
 | `brand-logo.png` | The **Milad AT8** brand mark (the black/yellow/red "A8") | Square PNG (shipped: 512×512) |
 
 `brand-logo.png` is already present (copied from the AT8 brand asset).

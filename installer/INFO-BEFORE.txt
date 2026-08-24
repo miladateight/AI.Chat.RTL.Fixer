@@ -1,4 +1,4 @@
-AI Chat RTL Fixer
+AI RTL Fixer
 
 Publisher: Milad AT8
 GitHub: https://github.com/miladateight

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Compiles the Windows installer for AI Chat RTL Fixer with Inno Setup.
+    Compiles the Windows installer for AI RTL Fixer with Inno Setup.
 
 .DESCRIPTION
     Regenerates branding, ensures a self-contained portable build exists, then

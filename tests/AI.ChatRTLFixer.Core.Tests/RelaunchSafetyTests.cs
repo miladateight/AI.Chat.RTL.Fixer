@@ -53,7 +53,7 @@ public class RelaunchSafetyTests
 
     [Theory]
     [InlineData(@"C:\Users\Milad\AppData\Local\Programs\ZCode\ZCode.exe")]
-    [InlineData(@"C:\Program Files\AI Chat RTL Fixer\AI.ChatRTLFixer.Tray.exe")]
+    [InlineData(@"C:\Program Files\AI RTL Fixer\AI.ChatRTLFixer.Tray.exe")]
     [InlineData("")]
     [InlineData(null)]
     public void PackageFamilyName_IsNullForOrdinaryInstalls(string? path)

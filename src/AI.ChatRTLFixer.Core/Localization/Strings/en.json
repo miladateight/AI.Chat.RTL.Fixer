@@ -1,7 +1,7 @@
 {
   "app.tagline": "Choose your apps once; right-to-left text stays readable and code stays left-to-right.",
   "language.pick.title": "Choose your language",
-  "language.pick.body": "Which language should AI Chat RTL Fixer speak? You can change this later in Settings.",
+  "language.pick.body": "Which language should AI RTL Fixer speak? You can change this later in Settings.",
   "language.pick.confirm": "Continue",
   "language.label": "Interface language",
   "section.quickSetup": "Quick setup",

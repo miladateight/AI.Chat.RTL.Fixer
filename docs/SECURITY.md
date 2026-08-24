@@ -2,7 +2,7 @@
 
 ## Target-app communication
 
-AI Chat RTL Fixer communicates with supported Electron target apps only through Chrome DevTools Protocol (CDP) endpoints on local loopback (`127.0.0.1` / `localhost`).
+AI RTL Fixer communicates with supported Electron target apps only through Chrome DevTools Protocol (CDP) endpoints on local loopback (`127.0.0.1` / `localhost`).
 
 - The adapter rejects a discovered WebSocket URL unless its host is loopback.
 - Relaunch arguments always bind the debugging endpoint to `127.0.0.1`.

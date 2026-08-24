@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Publishes the AI Chat RTL Fixer tray app as two portable outputs under dist/.
+    Publishes the AI RTL Fixer tray app as two portable outputs under dist/.
 
 .DESCRIPTION
     Produces:
@@ -51,7 +51,7 @@ function Invoke-Publish {
     # Bundle the font OFL license and a QuickStart next to the exe.
     Copy-Item (Join-Path $root "assets\fonts\OFL.txt") (Join-Path $outDir "Vazirmatn-OFL.txt") -Force
     Set-Content -Path (Join-Path $outDir "QuickStart.txt") -Encoding utf8 -Value @"
-AI Chat RTL Fixer - portable build ($Name)
+AI RTL Fixer - portable build ($Name)
 
 Quick start:
 1. Run AI.ChatRTLFixer.Tray.exe (no install needed).

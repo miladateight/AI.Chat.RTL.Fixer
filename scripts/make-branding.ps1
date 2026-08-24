@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Generates all derived branding assets for AI Chat RTL Fixer from source PNGs.
+    Generates all derived branding assets for AI RTL Fixer from source PNGs.
 
 .DESCRIPTION
     Source of truth (checked into the repo):

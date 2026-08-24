@@ -1,6 +1,6 @@
 # Release and packaging
 
-AI Chat RTL Fixer 1.1.2 produces three release artifacts under `dist\`:
+AI RTL Fixer 1.1.2 produces three release artifacts under `dist\`:
 
 | Output | Path | Notes |
 |---|---|---|

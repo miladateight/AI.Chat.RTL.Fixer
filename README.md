@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/branding/app-logo.png" alt="AI Chat RTL Fixer" width="120" />
+<img src="assets/branding/app-logo.png" alt="AI RTL Fixer" width="120" />
 
-# AI Chat RTL Fixer
+# AI RTL Fixer
 
 **RTL text for desktop AI chats — chat text is readable; code, commands, paths and English stay LTR.**
 
@@ -16,7 +16,7 @@
 
 </div>
 
-AI Chat RTL Fixer is a lightweight Windows tray app for Persian, Arabic, Hebrew, Urdu and other RTL-language users of graphical AI chat applications. It changes only the chat surface; sidebars, menus, settings, file trees, editors and terminals are never modified. All target-app changes are runtime-only and are removed when the fixer is disabled or exits.
+AI RTL Fixer is a lightweight Windows tray app for Persian, Arabic, Hebrew, Urdu and other RTL-language users of graphical AI chat applications. It changes only the chat surface; sidebars, menus, settings, file trees, editors and terminals are never modified. All target-app changes are runtime-only and are removed when the fixer is disabled or exits.
 
 ## Download
 
@@ -76,7 +76,7 @@ Experimental means a profile must still be verified against the installed target
 
 ## Install and run
 
-Run `AIChatRTLFixerSetup-1.1.2.exe`. It installs to `C:\Program Files\AI Chat RTL Fixer`, creates a Start Menu shortcut and a standard uninstaller. "Start with Windows" is selected in setup and remains controllable in Settings. Portable framework-dependent and self-contained `win-x64` builds are also produced under `dist\`.
+Run `AIChatRTLFixerSetup-1.1.2.exe`. It installs to `C:\Program Files\AI RTL Fixer`, creates a Start Menu shortcut and a standard uninstaller. "Start with Windows" is selected in setup and remains controllable in Settings. Portable framework-dependent and self-contained `win-x64` builds are also produced under `dist\`.
 
 ## Build and package from source
 

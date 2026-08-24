@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to AI Chat RTL Fixer, newest first.
+All notable changes to AI RTL Fixer, newest first.
 Each entry matches the corresponding [GitHub release](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases).
 
 ## [1.0.6](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.6) — 2026-08-24

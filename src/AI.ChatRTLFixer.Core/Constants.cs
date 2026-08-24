@@ -9,7 +9,7 @@ namespace AI.ChatRTLFixer.Core;
 public static class Constants
 {
     /// <summary>Product display name.</summary>
-    public const string ProductName = "AI Chat RTL Fixer";
+    public const string ProductName = "AI RTL Fixer";
 
     /// <summary>
     /// Product version, read from this assembly at runtime rather than repeated
