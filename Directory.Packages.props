@@ -22,7 +22,7 @@
     <!-- Windows-only: process command-line access via WMI -->
     <PackageVersion Include="System.Management" Version="8.0.0" />
     <!-- macOS host UI: cross-platform tray icon/menu, no untested native interop -->
-    <PackageVersion Include="Avalonia" Version="12.1.0" />
+    <PackageVersion Include="Avalonia" Version="12.1.1" />
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.0" />
     <PackageVersion Include="Avalonia.Native" Version="12.1.0" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.0" />
