@@ -70,7 +70,7 @@ public static class ScriptBuilder
     private const string Body = @"
     // --- registry of touched nodes, keyed by node, value = original attrs ---
     var registry = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
-    function markNode(el, decision, marker) {
+    function markNode(el, decision, marker, directionOnly) {
       if (!el || !el.setAttribute) return;
       marker = marker || 'applied';
       var previous = registry ? registry.get(el) : el.__rtlfixerPrev;
@@ -92,9 +92,13 @@ public static class ScriptBuilder
         // Chat apps sometimes mark list alignment/direction as !important. Use
         // the same priority while active, then restore the exact original value
         // and priority so bullets and numbered items move with their RTL text.
-        el.style.setProperty('text-align', decision.align, 'important');
+        // A table gets direction only: text-align would cascade into every cell
+        // and drag numeric or code columns along with the heading text.
+        if (!directionOnly) {
+          el.style.setProperty('text-align', decision.align, 'important');
+          el.style.unicodeBidi = 'isolate';
+        }
         el.style.setProperty('direction', decision.direction, 'important');
-        el.style.unicodeBidi = 'isolate';
       }
     }
 
@@ -152,6 +156,23 @@ public static class ScriptBuilder
       return false;
     }
 
+    // A table is a container, so the block scanner skips it — but a table whose
+    // content is RTL still reads wrong left-to-right, because its COLUMN order
+    // is decided by the table's own direction, not by its cells. Setting
+    // direction on the table alone flips the columns; each cell is still
+    // classified separately for its own text.
+    function processTable(el) {
+      if (!el || !el.getAttribute) return;
+      var text = el.textContent || '';
+      if (!text.trim()) return;
+      if (isProtected(el)) { restoreTrackedNode(el); return; }
+      var d = Rules.classify(text);
+      if (d.protected || d.direction !== 'rtl') { restoreTrackedNode(el); return; }
+      // Reuses markNode so the original dir/direction are recorded and restored
+      // exactly, the same as every other node the fixer touches.
+      markNode(el, d, 'applied-table', true);
+    }
+
     function processBlock(el) {
       if (!el || !el.getAttribute) return;
       // A generic DIV/TD/ARTICLE/SECTION is a text block only when it has no
@@ -202,7 +223,14 @@ public static class ScriptBuilder
       var sel = [];
       if (CFG.userMessage) sel.push(CFG.userMessage);
       if (CFG.assistantMessage) sel.push(CFG.assistantMessage);
-      sel.push('p','li','h1','h2','h3','h4','h5','blockquote','td','dd','div','article','section');
+      // Every element that normally holds a run of text directly. TH was
+      // missing, so a table's HEADER cells were never classified while its body
+      // cells were — a Persian table came out with its headings still
+      // left-aligned. H6, CAPTION, FIGCAPTION, DT and SUMMARY were missing for
+      // the same reason.
+      sel.push('p','li','h1','h2','h3','h4','h5','h6','blockquote',
+               'td','th','caption','dd','dt','figcaption','summary',
+               'div','article','section');
       return sel.join(', ');
     })();
 
@@ -214,6 +242,9 @@ public static class ScriptBuilder
         if (isCandidate(root, BLOCK_SELECTOR)) processBlock(root);
         var nodes = root.querySelectorAll(BLOCK_SELECTOR);
         for (var i = 0; i < nodes.length; i++) processBlock(nodes[i]);
+        if (isCandidate(root, 'table')) processTable(root);
+        var tables = root.querySelectorAll('table');
+        for (var t = 0; t < tables.length; t++) processTable(tables[t]);
       } catch (e) {}
     }
 

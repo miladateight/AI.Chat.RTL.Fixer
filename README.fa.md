@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# AI Chat RTL Fixer 1.1.0
+# AI Chat RTL Fixer 1.1.1
 
 ابزار سبک ویندوزی برای بهترکردن نمایش راست‌به‌چپ متن در بخش گفت‌وگوی برنامه‌های دسکتاپ هوش مصنوعی. فقط ناحیهٔ چت تغییر می‌کند؛ کد، دستورها، مسیر فایل، URL و متن انگلیسی چپ‌به‌راست و قابل‌کپی باقی می‌مانند.
 
@@ -8,11 +8,11 @@
 
 ## دانلود
 
-- نصب‌کننده: [AIChatRTLFixerSetup-1.1.0.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.0/AIChatRTLFixerSetup-1.1.0.exe)
-- SHA-256: [AIChatRTLFixerSetup-1.1.0.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.0/AIChatRTLFixerSetup-1.1.0.exe.sha256)
+- نصب‌کننده: [AIChatRTLFixerSetup-1.1.1.exe](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.1/AIChatRTLFixerSetup-1.1.1.exe)
+- SHA-256: [AIChatRTLFixerSetup-1.1.1.exe.sha256](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/download/v1.1.1/AIChatRTLFixerSetup-1.1.1.exe.sha256)
 - [همهٔ نسخه‌ها](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases)
 
-## قابلیت‌های نسخهٔ 1.1.0
+## قابلیت‌های نسخهٔ 1.1.1
 
 - اجرای مخفی در System Tray و انتخاب پیش‌فرض «اجرا هنگام شروع ویندوز» در نصب‌کننده.
 - تشخیص برنامه‌های هدف هنگام شروع ابزار و هنگام بازشدن آن‌ها.
@@ -59,8 +59,8 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1 -SkipTests
 خروجی نصب‌کننده در مسیر زیر ساخته می‌شود:
 
 ```text
-dist\installer\AIChatRTLFixerSetup-1.1.0.exe
-dist\installer\AIChatRTLFixerSetup-1.1.0.exe.sha256
+dist\installer\AIChatRTLFixerSetup-1.1.1.exe
+dist\installer\AIChatRTLFixerSetup-1.1.1.exe.sha256
 ```
 
 </div>

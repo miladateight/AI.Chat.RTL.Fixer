@@ -90,4 +90,39 @@ public class InjectionPayloadTests
         Assert.Contains("#composer", script);
         Assert.Contains("RtlReadableNoMarkers", script);
     }
+
+    /// <summary>
+    /// The scanner only classifies elements it selects. TH was absent from that
+    /// list while TD was present, so a table's body cells were fixed and its
+    /// HEADER cells silently were not — a Persian table kept left-aligned
+    /// headings. Cheap guard: assert the payload still selects each text-holding
+    /// element by name.
+    /// </summary>
+    [Theory]
+    [InlineData("'th'")]
+    [InlineData("'td'")]
+    [InlineData("'caption'")]
+    [InlineData("'figcaption'")]
+    [InlineData("'dt'")]
+    [InlineData("'dd'")]
+    [InlineData("'summary'")]
+    [InlineData("'h6'")]
+    public void ScriptBuilder_ScansEveryTextHoldingElement(string tag)
+    {
+        var script = ScriptBuilder.Build(Profile, CopyMode.RtlReadable);
+        Assert.Contains(tag, script, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A table's COLUMN order follows the table's own direction, not its cells',
+    /// so an RTL table needs the table element itself flipped or it still reads
+    /// left-to-right however the cells are aligned.
+    /// </summary>
+    [Fact]
+    public void ScriptBuilder_MirrorsRtlTables()
+    {
+        var script = ScriptBuilder.Build(Profile, CopyMode.RtlReadable);
+        Assert.Contains("processTable", script, StringComparison.Ordinal);
+        Assert.Contains("applied-table", script, StringComparison.Ordinal);
+    }
 }

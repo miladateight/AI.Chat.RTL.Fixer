@@ -52,6 +52,40 @@ language defines every key, that none defines a key English does not, that
 language code falls back to Persian, and that no translation was left as a copy
 of the English source.
 
+## [1.1.1](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.1) — 2026-08-24
+
+Tables are now fixed properly.
+
+### Table headings were never touched
+
+The scanner classifies the elements it selects, and that list contained `td` but
+not `th`. A table's body cells were therefore right-aligned while its heading
+row silently was not, which is exactly what a Persian table looks like when it
+seems half-fixed. `h6`, `caption`, `figcaption`, `dt` and `summary` were missing
+for the same reason and are now included.
+
+### A right-to-left table now reads right-to-left
+
+Column order is decided by the table's own direction, not by its cells. Fixing
+every cell individually still leaves the first column on the left, so the table
+reads backwards no matter how well each cell is aligned. A table whose content
+is right-to-left prose is now mirrored as a whole.
+
+Only its direction is set. Alignment stays with the individual cells, so a
+column of numbers, identifiers or code is not dragged along with the heading
+text — `Claude pid 1852` stays left-to-right in a table that is otherwise
+mirrored. Protected content and code tables are untouched, and the original
+`dir` is recorded and restored exactly like every other element the fixer
+changes.
+
+### Verification
+
+171 automated tests pass, up from 162. The engine was also run against the exact
+table that prompted this — three headings, six cells mixing Persian prose with
+Latin identifiers — inside the live chat app: the table and all three headings
+classified right-to-left, the Persian cells right-to-left, and the two cells
+holding process identifiers left-to-right.
+
 ## [1.1.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.0) — 2026-08-24
 
 A correctness release. Three defects made 1.0.6 unusable for anyone with more
