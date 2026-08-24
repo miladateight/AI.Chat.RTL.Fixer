@@ -41,8 +41,18 @@ Write-Output "== 4/5 publish (both portable outputs) =="
 Write-Output "== 5/5 installer =="
 & "$PSScriptRoot\package-installer.ps1" -SkipPublish
 
+# Report the installer that was actually produced rather than a filename typed
+# in here. A hardcoded version silently went stale every release and named a
+# file that no longer existed.
+$latestInstaller = Get-ChildItem (Join-Path $root "dist\installer") -Filter "AIChatRTLFixerSetup-*.exe" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
 Write-Output ""
 Write-Output "All done. Outputs under dist\:"
 Write-Output "  dist\portable-framework-dependent\"
 Write-Output "  dist\portable-self-contained-win-x64\"
-Write-Output "  dist\installer\AIChatRTLFixerSetup-1.0.3.exe"
+if ($latestInstaller) {
+    Write-Output "  dist\installer\$($latestInstaller.Name)"
+} else {
+    Write-Output "  dist\installer\  (no installer found)"
+}

@@ -92,7 +92,7 @@ dist\installer\AIChatRTLFixerSetup-1.0.5.exe
 dist\installer\AIChatRTLFixerSetup-1.0.5.exe.sha256
 ```
 
-See [release notes](RELEASE_NOTES_v1.0.5.md) and [packaging documentation](docs/RELEASE.md).
+See the [changelog](CHANGELOG.md) and the [packaging documentation](docs/RELEASE.md).
 
 ## License
 

@@ -36,12 +36,22 @@ powershell -File scripts\package-installer.ps1
 
 ## Version bump checklist
 
-Keep the version aligned in all of these locations:
+The version is declared in **two** places, and only these two are edited by hand:
 
-1. `Directory.Build.props` (`Version`, `AssemblyVersion`, `FileVersion`).
-2. `src\AI.ChatRTLFixer.Core\Constants.cs` (`AppVersion`).
-3. `installer\AI.ChatRTLFixer.iss` (`MyAppVersion`).
-4. `scripts\build-all.ps1` and `scripts\package-installer.ps1` (expected installer filename).
-5. Release notes and README download links.
+1. `Directory.Build.props` (`Version`, `AssemblyVersion`, `FileVersion`) — the
+   source of truth. The app reads it back from its own assembly at runtime, and
+   `scripts\package-mac.ps1` reads it for `Info.plist` and the `.pkg` name.
+2. `installer\AI.ChatRTLFixer.iss` (`MyAppVersion`) — Inno Setup needs it at
+   compile time. `scripts\package-installer.ps1` reads it back from there for
+   the checksum, and `scripts\build-all.ps1` reports whichever installer was
+   actually produced.
+
+Everything else derives from those. Do not reintroduce a version literal
+anywhere: three separate release bugs came from one — a stale checksum published
+against the previous installer, the wrong version stamped into `Info.plist`, and
+a build that reported itself as the previous release and so offered itself as an
+update forever.
+
+Then update `CHANGELOG.md` (newest entry first) and the README download links.
 
 Before publishing, verify both portable executables, the installer, its SHA-256 file, and the installer upgrade/uninstall path on a Windows machine.
