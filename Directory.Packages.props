@@ -10,7 +10,7 @@
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <!-- JS engine for TEST/REFERENCE evaluator only (NOT referenced by runtime projects).
          Used by AI.ChatRTLFixer.Rules.Tests to execute the canonical rtlfixer.rules.js
          so unit tests exercise the exact same code injected at runtime. -->
