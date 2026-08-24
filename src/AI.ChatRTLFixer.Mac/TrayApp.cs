@@ -1,5 +1,6 @@
 using AI.ChatRTLFixer.Core;
 using AI.ChatRTLFixer.Core.Abstractions;
+using AI.ChatRTLFixer.Core.Localization;
 using AI.ChatRTLFixer.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
@@ -76,12 +77,12 @@ public sealed class TrayApp
         _menu.Items.Clear();
         var settings = _orchestrator.Settings;
 
-        var toggle = new NativeMenuItem("RTL Fixer on") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = settings.GlobalEnabled };
+        var toggle = new NativeMenuItem(Loc.T("menu.on")) { ToggleType = MenuItemToggleType.CheckBox, IsChecked = settings.GlobalEnabled };
         toggle.Click += async (_, _) => await ToggleGlobalAsync();
         _menu.Add(toggle);
         _menu.Add(new NativeMenuItemSeparator());
 
-        var detected = new NativeMenuItem("Detected Apps") { Menu = new NativeMenu() };
+        var detected = new NativeMenuItem(Loc.T("detected.title")) { Menu = new NativeMenu() };
         foreach (var status in _orchestrator.RuntimeStatuses)
         {
             var profile = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == status.App.AppId);
@@ -89,14 +90,14 @@ public sealed class TrayApp
             detected.Menu!.Add(new NativeMenuItem($"{display}: {Readable(status.State)}") { IsEnabled = false });
         }
         if (detected.Menu!.Items.Count == 0)
-            detected.Menu.Add(new NativeMenuItem("(none)") { IsEnabled = false });
+            detected.Menu.Add(new NativeMenuItem(Loc.T("detected.none")) { IsEnabled = false });
         _menu.Add(detected);
 
         var pending = _orchestrator.PendingRelaunch;
         if (pending.Count > 0)
         {
             _menu.Add(new NativeMenuItemSeparator());
-            var relaunchMenu = new NativeMenuItem("Relaunch with RTL Fix…") { Menu = new NativeMenu() };
+            var relaunchMenu = new NativeMenuItem(Loc.T("relaunch.menu")) { Menu = new NativeMenu() };
             foreach (var app in pending)
             {
                 var displayName = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == app.AppId)?.DisplayName ?? app.AppId;
@@ -108,17 +109,17 @@ public sealed class TrayApp
         }
 
         _menu.Add(new NativeMenuItemSeparator());
-        _menu.Add(Mi("Settings...", OpenSettings));
-        var advanced = new NativeMenuItem("Advanced") { Menu = new NativeMenu() };
-        advanced.Menu.Add(MiAsync("Check for updates", () => CheckForUpdatesAsync(interactive: true)));
-        advanced.Menu.Add(Mi("Open logs", OpenLogs));
-        advanced.Menu.Add(MiAsync("Export detection report", ExportDetectionReportAsync));
-        advanced.Menu.Add(MiAsync("Reset runtime changes", () => _orchestrator.DisableAllAsync()));
+        _menu.Add(Mi(Loc.T("button.settings"), OpenSettings));
+        var advanced = new NativeMenuItem(Loc.T("menu.advanced")) { Menu = new NativeMenu() };
+        advanced.Menu.Add(MiAsync(Loc.T("button.checkUpdates"), () => CheckForUpdatesAsync(interactive: true)));
+        advanced.Menu.Add(Mi(Loc.T("menu.openLogs"), OpenLogs));
+        advanced.Menu.Add(MiAsync(Loc.T("menu.exportReport"), ExportDetectionReportAsync));
+        advanced.Menu.Add(MiAsync(Loc.T("menu.resetRuntime"), () => _orchestrator.DisableAllAsync()));
 
         // One-time setup that ends the close-and-reopen cycle: a per-user
         // LaunchAgent starts the app with its loopback debugging flags at login,
         // so the fixer attaches on its own from the next session onward.
-        var persistent = new NativeMenuItem("Attach automatically from now on") { Menu = new NativeMenu() };
+        var persistent = new NativeMenuItem(Loc.T("persistent.menu")) { Menu = new NativeMenu() };
         foreach (var status in _orchestrator.RuntimeStatuses)
         {
             var app = status.App;
@@ -126,16 +127,19 @@ public sealed class TrayApp
             var display = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == app.AppId)?.DisplayName ?? app.AppId;
             var configured = _orchestrator.Settings.Apps.TryGetValue(app.AppId, out var appToggle) && appToggle.PersistentLaunchConfigured;
             persistent.Menu!.Add(MiAsync(
-                configured ? $"{display} — turn off" : $"{display} — set up…",
+                configured ? Loc.T("persistent.turnOff", display) : Loc.T("persistent.setUp", display),
                 () => SetPersistentLaunchAsync(app, display, enable: !configured)));
         }
         if (persistent.Menu!.Items.Count > 0) advanced.Menu.Add(persistent);
 
         _menu.Add(advanced);
         _menu.Add(new NativeMenuItemSeparator());
-        _menu.Add(Mi("About", ShowAbout));
-        _menu.Add(Mi("Exit", ExitApp));
+        _menu.Add(Mi(Loc.T("button.about"), ShowAbout));
+        _menu.Add(Mi(Loc.T("button.exit"), ExitApp));
     }
+
+    /// <summary>Rebuilds the menu, e.g. after the language changes.</summary>
+    public void Refresh() => RebuildMenu();
 
     private static NativeMenuItem Mi(string text, Action handler)
     {
@@ -184,7 +188,7 @@ public sealed class TrayApp
                 _ = Dispatcher.UIThread.InvokeAsync(async () =>
                 {
                     var open = await Dialogs.ConfirmAsync(Constants.ProductName,
-                        $"Version {result.LatestVersion} is available. Open the GitHub release page?");
+                        Loc.T("update.available", result.LatestVersion?.ToString() ?? string.Empty));
                     if (open && result.ReleasePage is not null) UpdateChecker.OpenReleasePage(result.ReleasePage);
                 });
             }
@@ -211,12 +215,9 @@ public sealed class TrayApp
         if (enable)
         {
             var confirm = await Dialogs.ConfirmAsync(
-                $"Attach to {display} automatically",
-                $"A login item will start {display} with local debugging enabled from now on.\n\n" +
-                "The endpoint listens on 127.0.0.1 only and is never reachable from outside this Mac.\n\n" +
-                "From your next login onward, RTL Fixer attaches on its own. Note that reopening " +
-                $"{display} from the Dock during a session starts it without the flag, so that " +
-                "session still needs a relaunch.\n\nSet this up?");
+                Loc.T("persistent.confirmTitle", display),
+                Loc.T("persistent.confirmBodyMac", display),
+                Loc.T("button.yes"), Loc.T("button.no"));
             if (!confirm) return;
         }
 
@@ -230,20 +231,27 @@ public sealed class TrayApp
             await _orchestrator.SetPersistentLaunchAsync(app.AppId, enable, enable ? port : null);
             await _settingsStore.SaveAsync(_orchestrator.Settings, CancellationToken.None);
             Dialogs.Info(Constants.ProductName, enable
-                ? $"Done. {display} will attach on its own from your next login."
-                : $"Removed. The login item for {display} is gone.");
+                ? Loc.T("persistent.doneMac", display)
+                : Loc.T("persistent.removed", display));
         }
         else
         {
             Dialogs.Warn(Constants.ProductName,
-                $"Could not update the login item for {display} ({result.Detail ?? "unknown"}). Nothing was changed.");
+                Loc.T("persistent.failed", display, result.Detail ?? "unknown"));
         }
     }
 
     private async Task RelaunchAppAsync(DetectedApp app)
     {
-        Func<RelaunchWarning, Task<bool>> consent = warning =>
-            Dialogs.ConfirmAsync($"Relaunch {warning.AppDisplayName}", $"{warning.Message}\n\nProceed with relaunch?");
+        var display = _orchestrator.Profiles.FirstOrDefault(p => p.AppId == app.AppId)?.DisplayName ?? app.AppId;
+
+        // Say WHY before asking: an app that is already open cannot be joined,
+        // so the restart is the fix rather than an inconvenience.
+        Func<RelaunchWarning, Task<bool>> consent = _ =>
+            Dialogs.ConfirmAsync(
+                Loc.T("relaunch.confirmTitle", display),
+                Loc.T("relaunch.confirmBody", Loc.T("relaunch.why", display) + "\n\n" + Loc.T("relaunch.warnUnsaved", display)),
+                Loc.T("button.yes"), Loc.T("button.no"));
 
         try
         {
@@ -251,11 +259,11 @@ public sealed class TrayApp
             if (result.Success)
             {
                 _logger.Log(LogLevel.Information, LogCategories.Relaunch, "ui-relaunched", ("app", app.AppId), ("port", result.DebugPort ?? 0));
+                Dialogs.Info(Constants.ProductName, Loc.T("relaunch.done", display));
             }
             else if (result.ManualReopen && result.ManualCommand is not null)
             {
-                Dialogs.Info("Manual reopen required",
-                    $"Automatic relaunch was not possible. Please close the app and reopen it manually:\n\n{result.ManualCommand}");
+                Dialogs.Info(Loc.T("relaunch.manualTitle"), Loc.T("relaunch.manualBody", result.ManualCommand));
             }
             else if (!result.UserConsented)
             {
@@ -263,7 +271,7 @@ public sealed class TrayApp
             }
             else
             {
-                Dialogs.Warn(Constants.ProductName, $"Relaunch of {app.AppId} failed: {result.Detail ?? "unknown"}.");
+                Dialogs.Warn(Constants.ProductName, Loc.T("relaunch.failed", display, result.Detail ?? "unknown"));
             }
         }
         catch (Exception ex)
@@ -276,8 +284,8 @@ public sealed class TrayApp
     {
         try
         {
-            var includePaths = await Dialogs.ConfirmAsync("Export Detection Report",
-                "Include executable paths in this user-requested diagnostic export?");
+            var includePaths = await Dialogs.ConfirmAsync(Loc.T("menu.exportReport"),
+                "Include executable paths in this user-requested diagnostic export?", Loc.T("button.yes"), Loc.T("button.no"));
             var path = await DetectionReportExporter.ExportAsync(_orchestrator, includePaths, CancellationToken.None);
             RevealInFinder(path);
         }
@@ -289,14 +297,13 @@ public sealed class TrayApp
 
     private static string Readable(AppRuntimeState state) => state switch
     {
-        AppRuntimeState.RunningNoDebugPort => "Detected, waiting for local endpoint",
-        AppRuntimeState.RelaunchRequired or AppRuntimeState.RelaunchPromptShown => "Detected — click \"Relaunch with RTL Fix\" to enable",
-        AppRuntimeState.Relaunching => "Relaunching…",
-        AppRuntimeState.WaitingForCdp => "Relaunched, waiting for local endpoint",
-        AppRuntimeState.CdpUnsupported => "Detected, CDP unavailable",
-        AppRuntimeState.DebugArgsIgnored => "Detected, debug args ignored by app",
-        AppRuntimeState.InjectionSucceeded => "Attached",
-        AppRuntimeState.Unsupported => "Unsupported / Planned",
+        AppRuntimeState.RunningNoDebugPort => Loc.T("state.waitingEndpoint"),
+        AppRuntimeState.RelaunchRequired or AppRuntimeState.RelaunchPromptShown => Loc.T("state.needsRelaunch"),
+        AppRuntimeState.Relaunching or AppRuntimeState.WaitingForCdp => Loc.T("state.waitingEndpoint"),
+        AppRuntimeState.CdpUnsupported or AppRuntimeState.DebugArgsIgnored => Loc.T("state.needsRelaunch"),
+        AppRuntimeState.InjectionSucceeded => Loc.T("state.working"),
+        AppRuntimeState.DisabledByUser => Loc.T("state.disabled"),
+        AppRuntimeState.Unsupported => Loc.T("state.unsupported"),
         _ => state.ToString(),
     };
 
@@ -318,15 +325,8 @@ public sealed class TrayApp
 
     private void ShowAbout()
     {
-        Dialogs.Info("About " + Constants.ProductName,
-            $"{Constants.ProductName} v{Constants.AppVersion}\n\n" +
-            "A free and open-source menu bar tool that improves RTL text " +
-            "rendering inside AI desktop chat applications. It focuses only on " +
-            "the chat area and keeps code, commands, paths and English text " +
-            "left-to-right.\n\n" +
-            "No telemetry or analytics. Optional update checks contact only GitHub; " +
-            "target-app communication stays on local loopback.\n\n" +
-            "GitHub: " + Constants.GitHubLink);
+        Dialogs.Info(Loc.T("button.about") + " — " + Constants.ProductName,
+            Loc.T("about.body", Constants.ProductName, Constants.AppVersion, Constants.GitHubLink));
     }
 
     private async void ExitApp()

@@ -40,10 +40,13 @@ public sealed class SettingsForm : Form
         Font = new Font("Segoe UI", 9F);
         RightToLeft = Loc.IsRtl ? RightToLeft.Yes : RightToLeft.No;
         RightToLeftLayout = Loc.IsRtl;
-        ClientSize = new Size(580, 690);
-        MinimumSize = new Size(580, 520);
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
+        ClientSize = new Size(600, 720);
+        MinimumSize = new Size(600, 460);
+        // Sizable, not FixedDialog: the content grew past a fixed height and a
+        // dialog the user cannot resize simply clipped the controls at the
+        // bottom with no way to reach them.
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(248, 250, 252);
         Build();
@@ -53,6 +56,11 @@ public sealed class SettingsForm : Form
     {
         _loading = true;
         var settings = _orchestrator.Settings;
+        // WinForms docks the HIGHEST-indexed control first, so a Fill control has
+        // to be added BEFORE the edge-docked ones to end up with the leftover
+        // space. Added the other way round, Fill claimed the whole client area
+        // and the button strip was squeezed to nothing — which is why the
+        // controls at the bottom could be neither seen nor clicked.
         var root = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -64,18 +72,28 @@ public sealed class SettingsForm : Form
         };
         Controls.Add(root);
 
+        // Action buttons in a strip pinned to the bottom, so no amount of
+        // content above can push them out of reach. Only the panel above scrolls.
+        var bottomBar = new Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 52,
+            Padding = new Padding(20, 8, 20, 8),
+            BackColor = Color.FromArgb(241, 245, 249),
+        };
+        Controls.Add(bottomBar);
+
         root.Controls.Add(BuildHeader());
 
         // Anything blocking the fix sits directly under the header, with the
         // action on it. Previously the only way to act was to find "Relaunch
         // with RTL Fix" in the tray menu, which is not where someone looks when
         // the app they just opened is not being fixed.
-        _attention = MakeSection(Loc.T("section.needsAttention"));
+        _attention = MakeSection(Loc.T("section.needsAttention"), out var attentionBody);
         _attentionText = new Label
         {
-            AutoSize = false,
-            Width = 480,
-            Height = 62,
+            AutoSize = true,
+            MaximumSize = new Size(SectionInnerWidth, 0),
             ForeColor = Color.FromArgb(120, 53, 15),
         };
         _relaunchButton = new Button
@@ -86,13 +104,13 @@ public sealed class SettingsForm : Form
             AccessibleName = Loc.T("button.relaunchNow"),
         };
         _relaunchButton.Click += async (_, _) => await RelaunchPendingAsync();
-        _attention.Controls.Add(_attentionText);
-        _attention.Controls.Add(_relaunchButton);
+        Add(attentionBody, _attentionText);
+        Add(attentionBody, _relaunchButton);
         _attention.BackColor = Color.FromArgb(254, 249, 231);
-        LayoutSection(_attention);
+        FinishSection(_attention, attentionBody);
         root.Controls.Add(_attention);
 
-        var general = MakeSection(Loc.T("section.quickSetup"));
+        var general = MakeSection(Loc.T("section.quickSetup"), out var generalBody);
 
         var languageRow = new FlowLayoutPanel
         {
@@ -126,11 +144,13 @@ public sealed class SettingsForm : Form
             // Rebuild rather than retranslate in place: switching between an RTL
             // and an LTR language changes the layout direction of every control,
             // which WinForms only applies cleanly when they are created again.
+            SuspendLayout();
             Controls.Clear();
             Build();
+            ResumeLayout(performLayout: true);
         };
         languageRow.Controls.Add(language);
-        general.Controls.Add(languageRow);
+        Add(generalBody, languageRow);
         var global = new CheckBox
         {
             Text = Loc.T("toggle.enable"),
@@ -145,7 +165,7 @@ public sealed class SettingsForm : Form
             await SaveAsync();
             UpdateStatus();
         };
-        general.Controls.Add(global);
+        Add(generalBody, global);
 
         var startup = new CheckBox
         {
@@ -178,7 +198,8 @@ public sealed class SettingsForm : Form
             }
             await SaveAsync();
         };
-        general.Controls.Add(startup);
+        Add(generalBody, startup);
+        FinishSection(general, generalBody);
 
         var autoRelaunch = new CheckBox
         {
@@ -236,10 +257,9 @@ public sealed class SettingsForm : Form
             await SaveAsync();
         };
 
-        LayoutSection(general);
         root.Controls.Add(general);
 
-        var behavior = MakeSection(Loc.T("section.appearance"));
+        var behavior = MakeSection(Loc.T("section.appearance"), out var behaviorBody);
         var behaviorGrid = new TableLayoutPanel
         {
             AutoSize = true,
@@ -291,17 +311,16 @@ public sealed class SettingsForm : Form
         behaviorGrid.Controls.Add(font, 1, 0);
         behaviorGrid.Controls.Add(copyLabel, 0, 1);
         behaviorGrid.Controls.Add(copy, 1, 1);
-        behavior.Controls.Add(behaviorGrid);
-        LayoutSection(behavior);
+        Add(behaviorBody, behaviorGrid);
+        FinishSection(behavior, behaviorBody);
         root.Controls.Add(behavior);
 
-        var profiles = MakeSection(Loc.T("section.chooseApps"));
-        profiles.Controls.Add(new Label
+        var profiles = MakeSection(Loc.T("section.chooseApps"), out var profilesBody);
+        Add(profilesBody, new Label
         {
             Text = Loc.T("text.chooseAppsHelp"),
-            AutoSize = false,
-            Width = 480,
-            Height = 34,
+            AutoSize = true,
+            MaximumSize = new Size(SectionInnerWidth, 0),
             ForeColor = Color.FromArgb(71, 85, 105),
             Margin = new Padding(0, 0, 0, 8),
         });
@@ -332,8 +351,8 @@ public sealed class SettingsForm : Form
             await SaveAsync();
             UpdateStatus();
         });
-        profiles.Controls.Add(profileList);
-        LayoutSection(profiles);
+        Add(profilesBody, profileList);
+        FinishSection(profiles, profilesBody);
         root.Controls.Add(profiles);
 
         var advancedToggle = new Button
@@ -344,15 +363,15 @@ public sealed class SettingsForm : Form
             AccessibleName = Loc.T("button.showAdvanced"),
             Margin = new Padding(0, 0, 0, 6),
         };
-        var advanced = MakeSection(Loc.T("section.advanced"));
+        var advanced = MakeSection(Loc.T("section.advanced"), out var advancedBody);
         advanced.Visible = false;
-        advanced.Controls.Add(autoRelaunch);
-        advanced.Controls.Add(browserTargets);
-        advanced.Controls.Add(updateChecks);
+        Add(advancedBody, autoRelaunch);
+        Add(advancedBody, browserTargets);
+        Add(advancedBody, updateChecks);
         var checkUpdates = new Button { Text = Loc.T("button.checkUpdates"), AutoSize = true, AccessibleName = Loc.T("button.checkUpdates"), Margin = new Padding(0, 10, 0, 0) };
         checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
-        advanced.Controls.Add(checkUpdates);
-        LayoutSection(advanced);
+        Add(advancedBody, checkUpdates);
+        FinishSection(advanced, advancedBody);
         advancedToggle.Click += (_, _) =>
         {
             advanced.Visible = !advanced.Visible;
@@ -364,10 +383,10 @@ public sealed class SettingsForm : Form
 
         var footer = new FlowLayoutPanel
         {
-            AutoSize = true,
-            Width = 520,
+            Dock = DockStyle.Fill,
+            AutoSize = false,
             FlowDirection = FlowDirection.LeftToRight,
-            Margin = new Padding(0, 4, 0, 0),
+            Margin = new Padding(0),
         };
         var restore = new Button { Text = Loc.T("button.restorePause"), AutoSize = true, AccessibleName = Loc.T("button.restorePause") };
         restore.Click += async (_, _) =>
@@ -382,7 +401,8 @@ public sealed class SettingsForm : Form
         var close = new Button { Text = Loc.T("button.close"), AutoSize = true, DialogResult = DialogResult.OK, AccessibleName = Loc.T("button.close") };
         footer.Controls.Add(restore);
         footer.Controls.Add(close);
-        root.Controls.Add(footer);
+        bottomBar.Controls.Add(footer);
+        CancelButton = close;
 
         _loading = false;
         UpdateStatus();
@@ -412,25 +432,67 @@ public sealed class SettingsForm : Form
         return header;
     }
 
-    private static GroupBox MakeSection(string title) => new()
-    {
-        Text = title,
-        Width = 520,
-        AutoSize = false,
-        Padding = new Padding(14, 24, 14, 14),
-        Margin = new Padding(0, 0, 0, 12),
-    };
+    private const int SectionWidth = 520;
+    private const int SectionInnerWidth = SectionWidth - 40;
 
-    private static void LayoutSection(GroupBox section)
+    /// <summary>
+    /// A titled section whose children stack vertically.
+    /// </summary>
+    /// <remarks>
+    /// Children go into a FlowLayoutPanel instead of being positioned by hand.
+    /// Manual <c>Location = new Point(14, y)</c> arithmetic encodes a
+    /// left-to-right assumption: under RightToLeftLayout those coordinates are
+    /// mirrored, and every control ended up hanging past the right edge of the
+    /// window where it could be neither seen nor clicked — in Persian, Arabic,
+    /// Hebrew and Urdu, but never in English, which is why it shipped. A flow
+    /// panel mirrors itself, so one code path is correct in all five.
+    /// </remarks>
+    private static GroupBox MakeSection(string title, out FlowLayoutPanel body)
     {
-        var y = 28;
-        foreach (Control control in section.Controls)
+        var section = new GroupBox
         {
-            y += control.Margin.Top;
-            control.Location = new Point(14, y);
-            y += control.Height + 8;
-        }
-        section.Height = y + 12;
+            Text = title,
+            Width = SectionWidth,
+            // AutoSize on a GroupBox does not measure a DOCKED child, which
+            // collapsed every section to a sliver. The height is set explicitly
+            // by FinishSection once the children are in.
+            AutoSize = false,
+            Padding = new Padding(14, 24, 14, 14),
+            Margin = new Padding(0, 0, 0, 12),
+        };
+        body = new FlowLayoutPanel
+        {
+            Location = new Point(14, 24),
+            // Pin the width and let only the height grow, so the flow panel
+            // wraps its children instead of widening past the section.
+            MinimumSize = new Size(SectionInnerWidth, 0),
+            MaximumSize = new Size(SectionInnerWidth, 0),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Margin = new Padding(0),
+        };
+        section.Controls.Add(body);
+        return section;
+    }
+
+    /// <summary>Sizes a section to the content that was added to it.</summary>
+    private static void FinishSection(GroupBox section, FlowLayoutPanel body)
+        => section.Height = body.Top + Math.Max(body.Height, body.PreferredSize.Height) + 14;
+
+    /// <summary>
+    /// Adds a control to a section, capping its width so long sentences wrap
+    /// rather than running past the edge. A Persian or Arabic label is several
+    /// times the length of its English original, so an AutoSize control that
+    /// looked right in English overflowed everywhere else.
+    /// </summary>
+    private static T Add<T>(FlowLayoutPanel body, T control) where T : Control
+    {
+        if (control.AutoSize) control.MaximumSize = new Size(SectionInnerWidth, 0);
+        else if (control.Width > SectionInnerWidth) control.Width = SectionInnerWidth;
+        body.Controls.Add(control);
+        return control;
     }
 
     private void OnOrchestratorStateChanged(object? sender, EventArgs e)
@@ -508,6 +570,10 @@ public sealed class SettingsForm : Form
             : Loc.T("relaunch.needed.many", names.Count);
 
         _attentionText.Text = headline + "\n" + Loc.T("relaunch.why", string.Join(Loc.T("list.separator"), names));
+        // The banner is laid out while its text is still empty, so it has to be
+        // measured again now that it has content — otherwise the section keeps
+        // its empty height and swallows the button underneath.
+        FinishSection(_attention, (FlowLayoutPanel)_attention.Controls[0]);
         _attention.Visible = true;
     }
 
@@ -535,10 +601,10 @@ public sealed class SettingsForm : Form
             var result = await _orchestrator.RelaunchAsync(app, Consent);
             if (result.Success)
                 MessageBox.Show(Loc.T("relaunch.done", display), Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
-            else if (result.ManualReopen && result.ManualCommand is not null)
-                MessageBox.Show(Loc.T("relaunch.manualBody", result.ManualCommand), Loc.T("relaunch.manualTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
-            else if (result.UserConsented)
-                MessageBox.Show(Loc.T("relaunch.failed", display, result.Detail ?? "unknown"), Constants.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            else if (result.ManualReopen || result.UserConsented)
+                MessageBox.Show(
+                    TrayApplicationContext.ExplainRelaunchFailure(display, result.Detail),
+                    Loc.T("relaunch.manualTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         UpdateStatus();
     }

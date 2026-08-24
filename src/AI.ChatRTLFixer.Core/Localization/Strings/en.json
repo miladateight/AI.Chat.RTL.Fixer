@@ -76,5 +76,9 @@
   "browser.confirm": "Browser targeting can detect supported pages in your browser. A relaunch requires a separate confirmation and may close and reopen that browser. Continue?",
   "startup.failed": "The startup setting could not be updated. Please try again.",
   "about.body": "{0} v{1}\n\nRight-to-left text for desktop AI chats. Chat text becomes readable; code, commands and paths stay left-to-right.\n\n{2}",
-  "list.separator": ", "
+  "list.separator": ", ",
+  "relaunch.blocked.otherWindows": "{0} has more than one window open. Closing one and reopening it would just hand the launch back to the others, so nothing was changed.\n\nClose the other {0} windows, then try again.",
+  "relaunch.blocked.notFound": "{0} could not be started from where Windows says it lives, so it was left running untouched.",
+  "relaunch.blocked.didNotStayOpen": "{0} was reopened but closed itself again straight away. This usually means another copy of it was still running.\n\nClose every {0} window, then try again.",
+  "relaunch.blocked.reopenedWithoutFix": "{0} closed itself right after reopening, so it was opened again the normal way and is running — but without the fix.\n\nThis happens with Store-installed apps. Close every {0} window and try once more, or use it as it is."
 }

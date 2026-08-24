@@ -1,4 +1,5 @@
 using AI.ChatRTLFixer.Core;
+using AI.ChatRTLFixer.Core.Localization;
 using AI.ChatRTLFixer.Core.Abstractions;
 using AI.ChatRTLFixer.Diagnostics;
 using AI.ChatRTLFixer.Profiles;
@@ -40,6 +41,24 @@ public sealed class App : Application
             var relaunchService = new RelaunchService(logger, portPicker, settings.PortRange.Min, settings.PortRange.Max);
             var orchestrator = new Orchestrator(logger, profiles, watcher, relaunchService, settingsStore, settings);
             var updateChecker = new UpdateChecker(logger);
+
+            // Language before any other window, so every message from here on --
+            // including the first relaunch prompt -- is in a language the user reads.
+            Loc.SetLanguage(settings.UiCulture);
+            if (!settings.HasChosenLanguage)
+            {
+                var picker = new LanguagePickerWindow();
+                picker.Show();
+                _ = picker.Selection.ContinueWith(task =>
+                {
+                    if (task.Result is not string code) return;
+                    settings.UiCulture = code;
+                    settingsStore.SaveAsync(settings, CancellationToken.None).GetAwaiter().GetResult();
+                    Loc.SetLanguage(code);
+                    logger.Log(LogLevel.Information, LogCategories.App, "language-selected", ("code", Loc.Current.Code));
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => _trayApp?.Refresh());
+                }, TaskScheduler.Default);
+            }
 
             _trayApp = new TrayApp(desktop, orchestrator, logger, settingsStore, updateChecker);
         }

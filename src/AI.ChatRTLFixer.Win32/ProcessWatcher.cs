@@ -189,7 +189,7 @@ public sealed class ProcessWatcher : IProcessWatcher
                 }
                 catch { continue; }
 
-                if (IsElectronChild(snapshot.CommandLine)) continue;
+                if (IsElectronChild(snapshot.CommandLine, snapshot.ParentProcessId, snapshot.Name)) continue;
                 if (!_browserTargetsEnabled && BrowserGuard.IsBrowser(snapshot.Name, snapshot.ExecutablePath)) continue;
                 if (IsNonGuiBackend(snapshot.ExecutablePath, snapshot.CommandLine)) continue;
                 candidates++;
@@ -249,8 +249,51 @@ public sealed class ProcessWatcher : IProcessWatcher
         left.AppId == right.AppId && left.HasDebugPort == right.HasDebugPort && left.DebugPort == right.DebugPort &&
         string.Equals(left.ExecutablePath, right.ExecutablePath, StringComparison.OrdinalIgnoreCase) && left.MatchReason == right.MatchReason;
 
-    private static bool IsElectronChild(string? commandLine) =>
-        commandLine?.Contains("--type=", StringComparison.OrdinalIgnoreCase) == true;
+    /// <summary>
+    /// True for a process that is NOT the app's main process and therefore has
+    /// no chat window: Electron renderers, GPU, utility and crashpad helpers all
+    /// carry <c>--type=</c>.
+    /// </summary>
+    /// <remarks>
+    /// FAIL CLOSED. This used to return false when the command line could not be
+    /// read, which happens routinely for packaged (MSIX) apps and for any
+    /// process that is shutting down. Every unreadable helper was then treated
+    /// as a target app of its own: one Electron app produced a handful of
+    /// duplicate entries, each asking to be relaunched, and killing the real
+    /// main process turned its dying children into yet more entries. A process
+    /// we cannot identify is not a process we should close and restart.
+    /// </remarks>
+    private static bool IsElectronChild(string? commandLine, int? parentProcessId, string name)
+    {
+        if (commandLine is null)
+        {
+            // Unreadable command line: only trust it as a main process if
+            // nothing else about it looks like a helper. A helper's parent is
+            // another process of the same name; a main process's is not.
+            return LooksLikeSameAppParent(parentProcessId, name);
+        }
+        return commandLine.Contains("--type=", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// True when the parent process carries the same executable name, which is
+    /// how an Electron helper relates to its main process.
+    /// </summary>
+    private static bool LooksLikeSameAppParent(int? parentProcessId, string name)
+    {
+        if (parentProcessId is not int parent || parent <= 0) return true; // unknown -> assume helper
+        try
+        {
+            using var process = Process.GetProcessById(parent);
+            return string.Equals(process.ProcessName, name, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            // The parent is gone, so this process is an orphaned child of an app
+            // that has already exited. Never a relaunch target.
+            return true;
+        }
+    }
 
     // CLI/agent backends share a process name and even an executable name with a
     // desktop GUI, but have no chat window to inject into. They must never be

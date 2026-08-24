@@ -1,4 +1,5 @@
 using AI.ChatRTLFixer.Core;
+using AI.ChatRTLFixer.Core.Localization;
 using AI.ChatRTLFixer.Core.Abstractions;
 using AI.ChatRTLFixer.Core.Profiles;
 using AI.ChatRTLFixer.Diagnostics;
@@ -32,6 +33,8 @@ public sealed partial class SettingsWindow : Window
         _logger = logger;
         _updateChecker = updateChecker;
         InitializeComponent();
+        // Mirror the whole window, not just the text, for an RTL language.
+        FlowDirection = Loc.IsRtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         Build();
     }
 
@@ -46,8 +49,32 @@ public sealed partial class SettingsWindow : Window
 
         root.Children.Add(BuildHeader());
 
-        var general = MakeSection("Quick setup", out var generalBody);
-        var global = new CheckBox { Content = "Turn on RTL Fixer", IsChecked = settings.GlobalEnabled };
+        var general = MakeSection(Loc.T("section.quickSetup"), out var generalBody);
+
+        var languageRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        languageRow.Children.Add(new TextBlock { Text = Loc.T("language.label"), VerticalAlignment = VerticalAlignment.Center });
+        var languageBox = new ComboBox
+        {
+            Width = 200,
+            ItemsSource = UiLanguages.All.Select(l => l.NativeName).ToList(),
+            SelectedIndex = Math.Max(0, UiLanguages.All.ToList().FindIndex(l => l.Code == Loc.Current.Code)),
+        };
+        languageBox.SelectionChanged += async (_, _) =>
+        {
+            if (_loading || languageBox.SelectedIndex < 0) return;
+            var chosen = UiLanguages.All[languageBox.SelectedIndex];
+            if (chosen.Code == settings.UiCulture) return;
+            settings.UiCulture = chosen.Code;
+            Loc.SetLanguage(chosen.Code);
+            await SaveAsync();
+            // Rebuild rather than retranslate: switching between an RTL and an
+            // LTR language changes the direction of every control in the window.
+            FlowDirection = Loc.IsRtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            Build();
+        };
+        languageRow.Children.Add(languageBox);
+        generalBody.Children.Add(languageRow);
+        var global = new CheckBox { Content = Loc.T("toggle.enable"), IsChecked = settings.GlobalEnabled };
         global.IsCheckedChanged += async (_, _) =>
         {
             if (_loading) return;
@@ -57,7 +84,7 @@ public sealed partial class SettingsWindow : Window
         };
         generalBody.Children.Add(global);
 
-        var startup = new CheckBox { Content = "Start automatically at login", IsChecked = settings.StartWithWindows };
+        var startup = new CheckBox { Content = Loc.T("toggle.startWithMac"), IsChecked = settings.StartWithWindows };
         startup.IsCheckedChanged += async (_, _) =>
         {
             if (_loading) return;
@@ -77,13 +104,13 @@ public sealed partial class SettingsWindow : Window
                 startup.IsChecked = previous;
                 _loading = false;
                 _logger.Log(LogLevel.Warning, LogCategories.App, "startup-set-failed", ("msg", SafeLogger.Redact(ex.Message)));
-                Dialogs.Warn(Title!, "Login item could not be updated. Please try again.");
+                Dialogs.Warn(Title!, Loc.T("startup.failed"));
             }
             await SaveAsync();
         };
         generalBody.Children.Add(startup);
 
-        var autoRelaunch = new CheckBox { Content = "Remember relaunch approval per app (skip asking again once you've said yes)", IsChecked = settings.AutoRelaunchAfterConsent };
+        var autoRelaunch = new CheckBox { Content = Loc.T("toggle.rememberRelaunch"), IsChecked = settings.AutoRelaunchAfterConsent };
         autoRelaunch.IsCheckedChanged += async (_, _) =>
         {
             if (_loading) return;
@@ -91,14 +118,14 @@ public sealed partial class SettingsWindow : Window
             await SaveAsync();
         };
 
-        var browserTargets = new CheckBox { Content = "Enable browser targets (advanced; browser may be closed and reopened)", IsChecked = settings.EnableBrowserTargets };
+        var browserTargets = new CheckBox { Content = Loc.T("toggle.browserTargets"), IsChecked = settings.EnableBrowserTargets };
         browserTargets.IsCheckedChanged += async (_, _) =>
         {
             if (_loading) return;
             if (browserTargets.IsChecked == true)
             {
                 var confirmed = await Dialogs.ConfirmAsync(Title!,
-                    "Browser targeting can detect supported pages in your browser. A relaunch requires a separate confirmation and may close and reopen that browser. Continue?");
+                    Loc.T("browser.confirm"));
                 if (!confirmed)
                 {
                     _loading = true;
@@ -112,7 +139,7 @@ public sealed partial class SettingsWindow : Window
             UpdateStatus();
         };
 
-        var updateChecks = new CheckBox { Content = "Check GitHub for updates when the app starts", IsChecked = settings.CheckForUpdatesOnStartup };
+        var updateChecks = new CheckBox { Content = Loc.T("toggle.updateCheck"), IsChecked = settings.CheckForUpdatesOnStartup };
         updateChecks.IsCheckedChanged += async (_, _) =>
         {
             if (_loading) return;
@@ -121,10 +148,10 @@ public sealed partial class SettingsWindow : Window
         };
         root.Children.Add(general);
 
-        var behavior = MakeSection("Chat appearance", out var behaviorBody);
+        var behavior = MakeSection(Loc.T("section.appearance"), out var behaviorBody);
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("120,*"), RowDefinitions = new RowDefinitions("Auto,Auto"), RowSpacing = 8 };
 
-        var fontLabel = new TextBlock { Text = "Chat font", VerticalAlignment = VerticalAlignment.Center };
+        var fontLabel = new TextBlock { Text = Loc.T("label.font"), VerticalAlignment = VerticalAlignment.Center };
         var font = new ComboBox { Width = 250, HorizontalAlignment = HorizontalAlignment.Left };
         var availableFonts = Enum.GetValues<FontChoice>().Where(choice => choice != FontChoice.Custom).ToArray();
         foreach (var choice in availableFonts) font.Items.Add(choice);
@@ -137,7 +164,7 @@ public sealed partial class SettingsWindow : Window
             await SaveAsync();
         };
 
-        var copyLabel = new TextBlock { Text = "Copy mode", VerticalAlignment = VerticalAlignment.Center };
+        var copyLabel = new TextBlock { Text = Loc.T("label.copyMode"), VerticalAlignment = VerticalAlignment.Center };
         var copy = new ComboBox { Width = 250, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var choice in Enum.GetValues<CopyMode>()) copy.Items.Add(choice);
         copy.SelectedItem = settings.CopyMode;
@@ -157,10 +184,10 @@ public sealed partial class SettingsWindow : Window
         behaviorBody.Children.Add(grid);
         root.Children.Add(behavior);
 
-        var profilesSection = MakeSection("Choose your apps", out var profilesBody);
+        var profilesSection = MakeSection(Loc.T("section.chooseApps"), out var profilesBody);
         profilesBody.Children.Add(new TextBlock
         {
-            Text = "Select the AI apps where you want RTL Fixer to work. Other detected apps are left untouched.",
+            Text = Loc.T("text.chooseAppsHelp"),
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
         });
@@ -188,12 +215,12 @@ public sealed partial class SettingsWindow : Window
         advancedBody.Children.Add(autoRelaunch);
         advancedBody.Children.Add(browserTargets);
         advancedBody.Children.Add(updateChecks);
-        var checkUpdates = new Button { Content = "Check for updates now", HorizontalAlignment = HorizontalAlignment.Left };
+        var checkUpdates = new Button { Content = Loc.T("button.checkUpdates"), HorizontalAlignment = HorizontalAlignment.Left };
         checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
         advancedBody.Children.Add(checkUpdates);
         root.Children.Add(new Expander
         {
-            Header = "Advanced settings",
+            Header = Loc.T("section.advanced"),
             IsExpanded = false,
             Content = new Border
             {
@@ -207,7 +234,7 @@ public sealed partial class SettingsWindow : Window
         });
 
         var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left };
-        var restore = new Button { Content = "Restore and pause" };
+        var restore = new Button { Content = Loc.T("button.restorePause") };
         restore.Click += async (_, _) =>
         {
             await _orchestrator.SetGlobalEnabledAsync(false);
@@ -217,7 +244,7 @@ public sealed partial class SettingsWindow : Window
             await SaveAsync();
             UpdateStatus();
         };
-        var close = new Button { Content = "Close" };
+        var close = new Button { Content = Loc.T("button.close") };
         close.Click += (_, _) => Close();
         footer.Children.Add(restore);
         footer.Children.Add(close);
@@ -230,10 +257,10 @@ public sealed partial class SettingsWindow : Window
     private Control BuildHeader()
     {
         var header = new StackPanel { Spacing = 4 };
-        header.Children.Add(new TextBlock { Text = "AI Chat RTL Fixer", FontSize = 18, FontWeight = FontWeight.Bold });
+        header.Children.Add(new TextBlock { Text = Constants.ProductName, FontSize = 18, FontWeight = FontWeight.Bold });
         header.Children.Add(new TextBlock
         {
-            Text = "Choose your apps once; Persian stays readable and code stays LTR.",
+            Text = Loc.T("app.tagline"),
             Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
         });
         header.Children.Add(_statusValue);
@@ -263,7 +290,7 @@ public sealed partial class SettingsWindow : Window
         var result = await _updateChecker.CheckAsync(CancellationToken.None);
         if (result.IsUpdateAvailable)
         {
-            var open = await Dialogs.ConfirmAsync(Constants.ProductName, $"Version {result.LatestVersion} is available. Open the GitHub release page?");
+            var open = await Dialogs.ConfirmAsync(Constants.ProductName, Loc.T("update.available", result.LatestVersion?.ToString() ?? string.Empty));
             if (open && result.ReleasePage is not null) UpdateChecker.OpenReleasePage(result.ReleasePage);
             return;
         }
@@ -278,12 +305,12 @@ public sealed partial class SettingsWindow : Window
             && _orchestrator.Settings.Apps.TryGetValue(profile.AppId, out var toggle)
             && toggle.Enabled);
         _statusValue.Text = !_orchestrator.Settings.GlobalEnabled
-            ? "Paused — no app is being changed"
+            ? Loc.T("status.paused")
             : attached > 0
-                ? $"Working in {attached} app{(attached == 1 ? string.Empty : "s")}"
+                ? Loc.T("status.working", attached)
                 : selected == 0
-                    ? "Choose at least one app below"
-                    : "Ready — open a selected app";
+                    ? Loc.T("status.chooseApp")
+                    : Loc.T("status.ready");
         _statusValue.Foreground = new SolidColorBrush(_orchestrator.Settings.GlobalEnabled ? Color.FromRgb(13, 148, 136) : Color.FromRgb(100, 116, 139));
     }
 }

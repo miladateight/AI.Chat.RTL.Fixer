@@ -52,6 +52,64 @@ language defines every key, that none defines a key English does not, that
 language code falls back to Persian, and that no translation was left as a copy
 of the English source.
 
+## [1.1.0](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.1.0) — 2026-08-24
+
+A correctness release. Three defects made 1.0.6 unusable for anyone with more
+than one chat window open, and the right-to-left interface it had just gained
+was itself laid out wrongly.
+
+### It no longer closes an app it cannot bring back
+
+Relaunching an app could leave it shut. The report was blunt and accurate: "it
+closes the app but does not reopen it — and then I could not even open Claude
+again." Three separate faults combined to produce it.
+
+**Helper processes were mistaken for apps.** An Electron app runs a main process
+plus renderer, GPU, utility and crashpad helpers, all identified by `--type=` on
+their command line. That filter returned *false* whenever the command line could
+not be read — routine for Store-installed apps and for any process that is
+shutting down. Every unreadable helper became a target app of its own, so
+closing the real main process turned its dying children into a cascade of new
+entries each asking to be relaunched. The filter now fails closed: a process
+that cannot be identified is never something to close and restart.
+
+**A second window silently defeated the relaunch.** Electron holds a
+single-instance lock. With two windows open, closing one and starting a
+replacement just hands the launch back to the survivor — which has no debugging
+endpoint, so the app looks like it never came back. The relaunch now counts the
+other main processes first and refuses, changing nothing, with a message saying
+to close the other windows and try again.
+
+**Success was reported before it was known.** A relaunch counted as successful
+the moment the process started. A launch that died a second later still looked
+like it had worked. The app must now still be alive six seconds on; if it is
+not, and nothing of it is running, the package is activated the way the Start
+menu would open it, so the user gets their app back — without the fix, which is
+the right trade against being left with nothing.
+
+### The right-to-left interface was laid out left-to-right
+
+1.0.6 introduced Persian, Arabic, Hebrew and Urdu, then positioned every control
+with hand-written `Location = new Point(14, y)` arithmetic. That is a
+left-to-right assumption: under a mirrored layout those coordinates flip and the
+controls land past the edge of the window, unreachable. English was unaffected,
+which is exactly why it shipped.
+
+Sections now lay their children out with a flow panel, which mirrors itself.
+Long sentences wrap instead of overflowing — a Persian label is several times
+the length of its English original. The window is resizable rather than a fixed
+dialog, and the action buttons sit in a strip pinned to the bottom, so no
+quantity of content can push them out of reach. Each language is now rendered
+and inspected as an image during development rather than reasoned about.
+
+### Verification
+
+162 automated tests pass, up from 150. Beyond the suite, this build was checked
+against the live setup that produced the original report: two Claude windows and
+one ChatGPT window. Both Claude windows were correctly refused and left running;
+ChatGPT attached and injected without any relaunch; every process id was
+unchanged afterwards.
+
 ## [1.0.5](https://github.com/miladateight/AI.Chat.RTL.Fixer/releases/tag/v1.0.5) — 2026-08-23
 
 A patch release on top of 1.0.4. Everything 1.0.4 introduced is unchanged; this

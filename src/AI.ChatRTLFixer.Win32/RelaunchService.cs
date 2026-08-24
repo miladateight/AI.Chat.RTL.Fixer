@@ -81,6 +81,45 @@ public sealed class RelaunchService : IRelaunchService
         var debugArgs = profile.Cdp.LaunchArgs.Select(a => a.Replace("${port}", port.Value.ToString()));
         var finalArgs = string.Join(' ', originalArgs.Concat(debugArgs));
 
+        // NEVER close an app we are not sure we can start again. Closing first
+        // and discovering the executable is unreachable leaves the user staring
+        // at an app that vanished and will not come back — the single worst
+        // thing this tool can do to someone mid-conversation.
+        if (!File.Exists(exe))
+        {
+            _logger.Log(LogLevel.Warning, LogCategories.Relaunch, "exe-missing", ("app", profile.AppId));
+            return new RelaunchResult
+            {
+                Success = false,
+                UserConsented = true,
+                ManualReopen = true,
+                ManualCommand = BuildManualCommand(profile, port.Value),
+                Unsafe = true,
+                Detail = "executable-not-found",
+            };
+        }
+
+        // A second live main process of the same app holds Electron's
+        // single-instance lock. Killing this one and starting a replacement then
+        // hands the launch straight back to the survivor, which has no debug
+        // port: the app appears not to reopen and the fix never engages. Refuse
+        // rather than close something for no gain.
+        var siblings = CountOtherMainProcesses(app.ProcessId, exe);
+        if (siblings > 0)
+        {
+            _logger.Log(LogLevel.Warning, LogCategories.Relaunch, "other-instances-running",
+                ("app", profile.AppId), ("count", siblings));
+            return new RelaunchResult
+            {
+                Success = false,
+                UserConsented = true,
+                ManualReopen = true,
+                ManualCommand = BuildManualCommand(profile, port.Value),
+                Unsafe = true,
+                Detail = "other-windows-open:" + siblings,
+            };
+        }
+
         try
         {
             // Close the existing process. Try graceful first (WM_CLOSE): some apps
@@ -121,22 +160,49 @@ public sealed class RelaunchService : IRelaunchService
         {
             var startInfo = new ProcessStartInfo(exe, finalArgs) { UseShellExecute = false };
             var newProc = Process.Start(startInfo);
-            // This check is purely informational (logged, never gated on — the
-            // orchestrator's own CDP discovery is the authoritative signal). Keep
-            // its budget tiny: every millisecond here is time the user's app sits
-            // closed before reopening, and the real CDP poll happens right after
-            // this method returns anyway.
-            var argsVerified = newProc is not null && WaitForDebugArgs(newProc.Id, port.Value, TimeSpan.FromMilliseconds(300));
+
+            // The app is closed at this point, so "did it actually come back?"
+            // is the only question that matters. Reporting success merely
+            // because Process.Start returned is what let a launch that died
+            // immediately — an Electron instance handing off to a single-instance
+            // lock, or a packaged app refusing to run — look like it had worked,
+            // leaving the user with a closed app and a cheerful message.
+            var alive = newProc is not null && SurvivedStartup(newProc, TimeSpan.FromSeconds(6));
+            if (!alive)
+            {
+                // The app we closed is not running. Nothing about the fix matters
+                // now compared with giving the user their app back, so activate
+                // the package the way the Start menu would. That start carries no
+                // debugging endpoint, which is the correct trade: open without the
+                // fix beats closed with it.
+                var recovered = false;
+                if (!PackagedAppLauncher.IsAnyInstanceRunning(exe))
+                    recovered = PackagedAppLauncher.TryActivate(exe);
+
+                _logger.Log(LogLevel.Warning, LogCategories.Relaunch, "relaunch-did-not-stay-up",
+                    ("app", profile.AppId), ("port", port.Value), ("recovered", recovered));
+
+                return new RelaunchResult
+                {
+                    Success = false,
+                    UserConsented = true,
+                    ManualReopen = true,
+                    ManualCommand = BuildManualCommand(profile, port.Value),
+                    Unsafe = true,
+                    Detail = recovered ? "reopened-without-fix" : "did-not-stay-open",
+                };
+            }
+
+            var argsVerified = WaitForDebugArgs(newProc!.Id, port.Value, TimeSpan.FromMilliseconds(500));
             _logger.Log(LogLevel.Information, LogCategories.Relaunch, argsVerified ? "args-verified" : "args-unverified", ("app", profile.AppId), ("port", port.Value));
-            _logger.Log(LogLevel.Information, LogCategories.Relaunch, "relaunched", ("app", profile.AppId), ("port", port.Value));
-            // NOTE: the orchestrator verifies CDP comes up on 127.0.0.1 with a BOUNDED
-            // number of retries. If it does not (e.g. Electron single-instance rejected
-            // the second instance), the orchestrator reports Experimental/Unsupported.
+            _logger.Log(LogLevel.Information, LogCategories.Relaunch, "relaunched", ("app", profile.AppId), ("port", port.Value), ("pid", newProc.Id));
+            // NOTE: the orchestrator still verifies CDP comes up on 127.0.0.1 with
+            // a BOUNDED number of retries; this only guarantees the app is back.
             return new RelaunchResult
             {
                 Success = true,
                 UserConsented = true,
-                NewProcessId = newProc?.Id,
+                NewProcessId = newProc.Id,
                 DebugPort = port,
                 DebugArgsVerified = argsVerified,
             };
@@ -146,6 +212,69 @@ public sealed class RelaunchService : IRelaunchService
             _logger.Log(LogLevel.Error, LogCategories.Relaunch, "start-failed", ("app", profile.AppId), ("msg", SafeLogger.Redact(ex.Message)));
             return new RelaunchResult { Success = false, UserConsented = true, Unsafe = true, Detail = SafeLogger.Redact(ex.Message) };
         }
+    }
+
+    /// <summary>
+    /// True when the freshly started process is still alive after
+    /// <paramref name="grace"/>. An Electron instance that hands off to an
+    /// existing single-instance lock exits within a fraction of a second, as
+    /// does a packaged app that refuses to run outside its package.
+    /// </summary>
+    private static bool SurvivedStartup(Process process, TimeSpan grace)
+    {
+        try
+        {
+            // WaitForExit returning true means it exited inside the window,
+            // which is exactly the failure we are looking for.
+            return !process.WaitForExit((int)grace.TotalMilliseconds);
+        }
+        catch
+        {
+            // Cannot observe it (already reaped, access denied): fall back to a
+            // direct look rather than assuming either outcome.
+            try { return !process.HasExited; } catch { return false; }
+        }
+    }
+
+    /// <summary>
+    /// Counts other MAIN processes of the same executable — Electron helpers
+    /// (<c>--type=</c>) excluded. Each main process is a separate window the
+    /// user has open, and any one of them holds the single-instance lock.
+    /// </summary>
+    /// <remarks>
+    /// Public so it can be exercised directly: the alternative way to check this
+    /// gate is to run a real relaunch, and a bug here closes somebody's chat app
+    /// without being able to bring it back. Read-only — it only queries WMI.
+    /// </remarks>
+    public static int CountOtherMainProcesses(int selfPid, string exe)
+    {
+        var count = 0;
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT ProcessId, ExecutablePath, CommandLine FROM Win32_Process");
+            using var results = searcher.Get();
+            foreach (ManagementObject item in results)
+            {
+                using (item)
+                {
+                    if (item["ProcessId"] is not uint pid || (int)pid == selfPid) continue;
+                    if (item["ExecutablePath"] is not string path) continue;
+                    if (!string.Equals(path, exe, StringComparison.OrdinalIgnoreCase)) continue;
+                    var commandLine = item["CommandLine"] as string;
+                    // Only other MAIN processes matter; helpers die with their parent.
+                    if (commandLine?.Contains("--type=", StringComparison.OrdinalIgnoreCase) != false) continue;
+                    count++;
+                }
+            }
+        }
+        catch
+        {
+            // Cannot tell — treat as none rather than blocking a relaunch that
+            // would otherwise be fine. The post-launch verification below still
+            // catches a launch that does not come up.
+        }
+        return count;
     }
 
     private static string BuildManualCommand(AppProfile profile, int port)

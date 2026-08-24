@@ -185,6 +185,26 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private readonly HashSet<string> _announcedRelaunch = new(StringComparer.OrdinalIgnoreCase);
 
+
+    /// <summary>
+    /// Turns a failed relaunch into a sentence that says what happened and what
+    /// to do. A bare error code ("did-not-stay-open") tells the user nothing;
+    /// these are the cases the safety checks now stop BEFORE anything is closed.
+    /// </summary>
+    internal static string ExplainRelaunchFailure(string display, string? detail)
+    {
+        if (detail is null) return Loc.T("relaunch.failed", display, "unknown");
+        if (detail.StartsWith("other-windows-open", StringComparison.Ordinal))
+            return Loc.T("relaunch.blocked.otherWindows", display);
+        if (detail == "executable-not-found")
+            return Loc.T("relaunch.blocked.notFound", display);
+        if (detail == "did-not-stay-open")
+            return Loc.T("relaunch.blocked.didNotStayOpen", display);
+        if (detail == "reopened-without-fix")
+            return Loc.T("relaunch.blocked.reopenedWithoutFix", display);
+        return Loc.T("relaunch.failed", display, detail);
+    }
+
     private static ToolStripMenuItem Mi(string text, Action handler)
         => new(text, null, (_, _) => handler());
 
@@ -337,11 +357,11 @@ public sealed class TrayApplicationContext : ApplicationContext
             {
                 _notify.ShowBalloonTip(3000, Constants.ProductName, Loc.T("relaunch.done", display), ToolTipIcon.Info);
             }
-            else if (result.ManualReopen && result.ManualCommand is not null)
+            else if (result.ManualReopen)
             {
                 MessageBox.Show(
-                    Loc.T("relaunch.manualBody", result.ManualCommand),
-                    Loc.T("relaunch.manualTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    ExplainRelaunchFailure(display, result.Detail),
+                    Loc.T("relaunch.manualTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             else if (!result.UserConsented)
             {
@@ -349,8 +369,8 @@ public sealed class TrayApplicationContext : ApplicationContext
             }
             else
             {
-                _notify.ShowBalloonTip(3000, Constants.ProductName,
-                    Loc.T("relaunch.failed", display, result.Detail ?? "unknown"), ToolTipIcon.Warning);
+                _notify.ShowBalloonTip(5000, Constants.ProductName,
+                    ExplainRelaunchFailure(display, result.Detail), ToolTipIcon.Warning);
             }
         }
         catch (Exception ex)
