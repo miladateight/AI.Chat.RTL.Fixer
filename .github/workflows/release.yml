@@ -1,0 +1,128 @@
+name: release
+
+# Cuts the Windows release from a tag: builds and tests on a clean runner,
+# compiles the installer, records what went into it, has GitHub attest that
+# this exact file came out of this exact commit, and publishes.
+#
+# The macOS .pkg is added to the same release afterwards by build-macos.yml,
+# which needs real Mac hardware.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write      # create the release
+  id-token: write      # sign the provenance statement
+  attestations: write  # record it against this repository
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 8.0.x
+
+      # The version lives in exactly two hand-edited places (see docs/RELEASE.md).
+      # A tag that disagrees with either of them has already shipped a checksum
+      # for the previous installer, so stop here rather than publish the
+      # mismatch.
+      - name: Verify tag matches the declared version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+
+          $props = (Select-String -Path Directory.Build.props -Pattern '<Version>([^<]+)</Version>' |
+            Select-Object -First 1).Matches[0].Groups[1].Value
+          $iss = (Select-String -Path installer/AI.ChatRTLFixer.iss -Pattern '^\s*#define\s+MyAppVersion\s+"([^"]+)"' |
+            Select-Object -First 1).Matches[0].Groups[1].Value
+
+          if ($props -ne $version) { throw "Tag is $version but Directory.Build.props says $props." }
+          if ($iss -ne $version) { throw "Tag is $version but installer/AI.ChatRTLFixer.iss says $iss." }
+
+          Write-Output "Releasing $version."
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      # One script, the same one used locally: build, test, branding, both
+      # portable outputs, installer. Keeping the recipe in the repository
+      # rather than in this file means a local release and a tagged release
+      # cannot drift apart.
+      - name: Build, test and package
+        run: pwsh scripts/build-all.ps1
+
+      # What the installer is made of, in a format vulnerability scanners read.
+      - name: Generate SBOM
+        shell: pwsh
+        run: |
+          dotnet tool install --global CycloneDX --version 6.2.0
+          dotnet CycloneDX AI.ChatRTLFixer.sln `
+            --output dist/installer `
+            --output-format Json `
+            --filename "AIChatRTLFixerSetup-${{ steps.version.outputs.version }}.cdx.json" `
+            --exclude-test-projects `
+            --set-name "AI RTL Fixer" `
+            --set-version "${{ steps.version.outputs.version }}"
+
+      # Lets anyone confirm the installer they downloaded was built here:
+      #   gh attestation verify <installer> --repo ${{ github.repository }}
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/installer/AIChatRTLFixerSetup-${{ steps.version.outputs.version }}.exe
+
+      # Hashed last: anything done to the file after this point would
+      # invalidate the checksum.
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          Remove-Item dist/installer/*.sha256 -ErrorAction SilentlyContinue
+          $lines = Get-ChildItem dist/installer -File | Sort-Object Name | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant(), $_.Name
+          }
+          Set-Content -Path dist/installer/SHA256SUMS.txt -Value $lines -Encoding ascii
+          Get-Content dist/installer/SHA256SUMS.txt
+
+      - name: Collect release notes
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $lines = Get-Content CHANGELOG.md
+          $start = ($lines | Select-String -Pattern "^## \[$([regex]::Escape($version))\]" |
+            Select-Object -First 1).LineNumber
+
+          if ($start) {
+            $rest = $lines[$start..($lines.Count - 1)]
+            $end = ($rest | Select-String -Pattern '^## ' | Select-Object -First 1).LineNumber
+            $body = if (-not $end) { $rest } elseif ($end -gt 1) { $rest[0..($end - 2)] } else { @() }
+            Set-Content -Path release-notes.md -Value $body -Encoding utf8
+          } else {
+            Set-Content -Path release-notes.md -Encoding utf8 -Value @(
+              "AI RTL Fixer $version."
+              ""
+              "CHANGELOG.md has no entry for this version."
+            )
+          }
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          name: AI RTL Fixer ${{ steps.version.outputs.version }}
+          body_path: release-notes.md
+          generate_release_notes: true
+          files: |
+            dist/installer/AIChatRTLFixerSetup-*.exe
+            dist/installer/*.cdx.json
+            dist/installer/SHA256SUMS.txt
