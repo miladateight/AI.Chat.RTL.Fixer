@@ -101,6 +101,20 @@ dist\installer\AIChatRTLFixerSetup-1.1.2.exe.sha256
 
 See the [changelog](CHANGELOG.md) and the [packaging documentation](docs/RELEASE.md).
 
+## Verifying a download
+
+Every release is built from a tag by GitHub Actions, never on a developer machine, and carries a signed statement of the commit it came from. To check that the installer you downloaded is that exact file:
+
+```bash
+gh attestation verify AIChatRTLFixerSetup-1.1.2.exe --repo miladateight/AI.RTL.Fixer
+```
+
+The release also publishes a SHA-256 checksum and a CycloneDX SBOM listing everything the build pulled in. How signing and release approval work is described in the [code signing policy](docs/CODE_SIGNING_POLICY.md).
+
+## Privacy
+
+No server, no account, no analytics; nothing you type or read leaves your machine. The one optional network request is an update check. [PRIVACY.md](docs/PRIVACY.md) has the specifics, including what logging records and the one setting that allows short text samples into a local log file.
+
 ## License
 
 The app is MIT licensed. Bundled components and their own terms are listed in [THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md).

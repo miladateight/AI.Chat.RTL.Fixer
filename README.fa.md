@@ -47,6 +47,16 @@ ChatGPT Desktop، Codex Desktop، Claude Desktop و ZCode به‌همراه تع
 - نصب آپدیت خودکار نیست؛ فقط پس از تأیید شما صفحهٔ رسمی release باز می‌شود.
 - relaunch اول هر برنامه همیشه تأیید صریح می‌خواهد تا کار ذخیره‌نشده از دست نرود.
 
+## بررسی صحت فایل دانلودشده
+
+هر release از روی تگ و توسط GitHub Actions ساخته می‌شود، نه روی کامپیوتر توسعه‌دهنده، و یک سند امضاشده از کامیتی که از آن ساخته شده همراه دارد. برای اطمینان از اینکه نصب‌کنندهٔ دانلودشده دقیقاً همان فایل است:
+
+```bash
+gh attestation verify AIChatRTLFixerSetup-1.1.2.exe --repo miladateight/AI.RTL.Fixer
+```
+
+کنار هر release یک checksum از نوع SHA-256 و یک SBOM به فرمت CycloneDX هم منتشر می‌شود که همهٔ وابستگی‌های build را فهرست می‌کند. روند امضا و تأیید انتشار در [سیاست امضای کد](docs/CODE_SIGNING_POLICY.md) توضیح داده شده است.
+
 ## ساخت نسخهٔ انتشار
 
 به .NET 8 SDK و Inno Setup 6 نیاز دارید:
