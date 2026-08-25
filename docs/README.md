@@ -4,9 +4,9 @@ This folder contains release, security, test-plan and contribution documentation
 
 - [Product overview and downloads](../README.md)
 - [Release and packaging](RELEASE.md)
-- [Security and privacy](SECURITY.md)
+- [Security and privacy](../.github/SECURITY.md)
 - [Test plan](TESTPLAN.md)
-- [Contributing app profiles](CONTRIBUTING.md)
+- [Contributing app profiles](../.github/CONTRIBUTING.md)
 
 The app is a Windows tray tool for graphical desktop AI chats. It modifies only the target chat surface at runtime. Electron support uses local loopback CDP; other UI technologies need dedicated adapters and real-install verification.
 

@@ -103,4 +103,4 @@ See the [changelog](CHANGELOG.md) and the [packaging documentation](docs/RELEASE
 
 ## License
 
-The app is MIT licensed. Bundled components and their own terms are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The app is MIT licensed. Bundled components and their own terms are listed in [THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md).
