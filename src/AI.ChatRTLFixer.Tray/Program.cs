@@ -24,7 +24,13 @@ internal static class Program
         var settings = settingsStore.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         // The installer can create this entry before the first application run.
         // Read Windows as the source of truth so the Settings checkbox is accurate.
-        settings.StartWithWindows = StartupManager.IsEnabled();
+        //
+        // Not in the packaged build: a package's writes to the Run key land in a
+        // virtualised copy that the Windows startup scan never reads, so the
+        // value there would describe nothing. Startup for that build is the
+        // package's own startup task, controlled from Settings > Apps > Startup.
+        if (!PackageContext.IsPackaged)
+            settings.StartWithWindows = StartupManager.IsEnabled();
 
         var profiles = new ProfileRegistry();
         var watcher = new ProcessWatcher(profiles, logger);

@@ -47,7 +47,9 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _orchestrator.Start();
         RebuildMenu();
-        if (_orchestrator.Settings.CheckForUpdatesOnStartup)
+        // The Store updates the packaged build itself; checking GitHub from inside
+        // it would announce versions the user cannot install from there.
+        if (_orchestrator.Settings.CheckForUpdatesOnStartup && !PackageContext.IsPackaged)
             _ = CheckForUpdatesAsync(interactive: false);
     }
 
@@ -111,7 +113,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Mi(Loc.T("button.settings"), OpenSettings));
         var advanced = new ToolStripMenuItem(Loc.T("menu.advanced"));
-        advanced.DropDownItems.Add(Mi(Loc.T("button.checkUpdates"), () => CheckForUpdatesAsync(interactive: true)));
+        if (!PackageContext.IsPackaged)
+            advanced.DropDownItems.Add(Mi(Loc.T("button.checkUpdates"), () => CheckForUpdatesAsync(interactive: true)));
         advanced.DropDownItems.Add(Mi(Loc.T("menu.openLogs"), OpenLogs));
         advanced.DropDownItems.Add(Mi(Loc.T("menu.exportReport"), ExportDetectionReportAsync));
         advanced.DropDownItems.Add(Mi(Loc.T("menu.resetRuntime"), async () => await _orchestrator.DisableAllAsync()));

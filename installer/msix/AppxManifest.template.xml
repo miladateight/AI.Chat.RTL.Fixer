@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  Package manifest for the Microsoft Store build.
+
+  This is a template. scripts\package-msix.ps1 substitutes the {{TOKEN}} values
+  and writes the real AppxManifest.xml into the package layout; nothing here is
+  edited by hand at build time.
+
+  Identity/@Name, Identity/@Publisher and PublisherDisplayName must match the
+  values Partner Center shows under Product identity for the reserved app name.
+  Until the app name is reserved they carry obvious placeholders, and the
+  script refuses to build a Store package with those still in place.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap5 rescap">
+
+  <Identity
+    Name="{{IDENTITY_NAME}}"
+    Publisher="{{IDENTITY_PUBLISHER}}"
+    Version="{{VERSION}}"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>AI RTL Fixer</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!-- 1809 is the first build with the MSIX behaviour this package relies on. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+    <Resource Language="fa-IR" />
+    <Resource Language="ar" />
+    <Resource Language="he" />
+    <Resource Language="ur" />
+  </Resources>
+
+  <Applications>
+    <!--
+      EntryPoint Windows.FullTrustApplication: this is an ordinary Win32 desktop
+      app in a package, not a sandboxed UWP app. It keeps its own process, its
+      Win32 APIs and its loopback connection to the target chat application.
+    -->
+    <Application Id="App" Executable="AI.ChatRTLFixer.Tray.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="AI RTL Fixer"
+        Description="Fixes right-to-left text rendering in desktop AI chat apps for Persian, Arabic, Hebrew and Urdu, while code, commands and paths stay left to right."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!--
+          Start with Windows. A packaged app cannot use the HKCU Run key: its
+          registry writes are virtualised into the package hive, where the
+          Windows startup scan never looks, so the setting would appear to work
+          and silently do nothing. Declared disabled — the app enables it
+          through the StartupTask API, and the user can always overrule that
+          from Settings > Apps > Startup.
+        -->
+        <uap5:Extension Category="windows.startupTask">
+          <uap5:StartupTask
+            TaskId="AIChatRTLFixerStartup"
+            Enabled="false"
+            DisplayName="AI RTL Fixer" />
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!--
+      runFullTrust is what makes this a packaged desktop app rather than a UWP
+      one. It is a restricted capability: the Store reviews it, and the review
+      notes explain why a tool that restyles another app's window needs it.
+    -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

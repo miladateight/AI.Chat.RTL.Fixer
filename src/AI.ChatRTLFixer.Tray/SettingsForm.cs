@@ -198,7 +198,14 @@ public sealed class SettingsForm : Form
             }
             await SaveAsync();
         };
-        Add(generalBody, startup);
+        // The packaged build cannot honour this control — see Program.Main — and a
+        // checkbox that reports success while Windows ignores it is worse than no
+        // checkbox. Store users get the startup entry the package declares, which
+        // Windows lists under Settings > Apps > Startup like every other packaged
+        // app.
+        if (!PackageContext.IsPackaged)
+            Add(generalBody, startup);
+
         FinishSection(general, generalBody);
 
         var autoRelaunch = new CheckBox
@@ -367,10 +374,19 @@ public sealed class SettingsForm : Form
         advanced.Visible = false;
         Add(advancedBody, autoRelaunch);
         Add(advancedBody, browserTargets);
-        Add(advancedBody, updateChecks);
-        var checkUpdates = new Button { Text = Loc.T("button.checkUpdates"), AutoSize = true, AccessibleName = Loc.T("button.checkUpdates"), Margin = new Padding(0, 10, 0, 0) };
-        checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
-        Add(advancedBody, checkUpdates);
+
+        // The Store keeps its own copy of the app up to date, and a Store app that
+        // sends users to fetch an installer from somewhere else is both confusing
+        // and against store policy. So the packaged build does not offer update
+        // checking at all rather than offering it and then declining to act.
+        if (!PackageContext.IsPackaged)
+        {
+            Add(advancedBody, updateChecks);
+            var checkUpdates = new Button { Text = Loc.T("button.checkUpdates"), AutoSize = true, AccessibleName = Loc.T("button.checkUpdates"), Margin = new Padding(0, 10, 0, 0) };
+            checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync();
+            Add(advancedBody, checkUpdates);
+        }
+
         FinishSection(advanced, advancedBody);
         advancedToggle.Click += (_, _) =>
         {
