@@ -56,7 +56,7 @@ Two things cannot work the same way in a package, and the app detects which buil
 
 ## Known gaps
 
-- **Settings do not carry over from an installer-based install.** Under MSIX, writes to `%AppData%` are redirected into the package's own container, so a user who switches from the installer to the Store version starts with defaults: enabled apps, font, copy mode, language. A one-time import on first packaged run would fix it and has not been written.
+- **Whether settings carry over from an installer-based install is untested.** Under MSIX, *writes* to `%AppData%` are redirected into the package's own container. Reads are usually a merged view, so the packaged build may well see an existing installer's `settings.json` and start with the user's enabled apps, font, copy mode and language intact — but "usually" is not a thing to ship on. Install the package on a machine that already has the installer version and look. If the settings are not there, a one-time import on first packaged run is needed.
 - **Both builds can be installed at once.** They share the `Local\AIChatRTLFixer` mutex, so only one runs and the second exits quietly — no duplicate tray icons, but also no explanation to the user. Worth handling before the Store listing goes live.
 - **The packaged build has not been run end to end.** The package builds, signs and passes `makeappx` validation; attaching to a real chat application from inside the container, relaunching a target app, and the clipboard path all still need to be exercised on a machine with the package installed.
 
