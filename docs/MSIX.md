@@ -59,7 +59,9 @@ Two things cannot work the same way in a package, and the app detects which buil
 Run from the registered package on a machine that already had the installed build:
 
 - **It attaches and injects.** The packaged process discovered the running chat application, connected over CDP on `127.0.0.1`, and injected successfully. Package identity does not get in the way of the loopback connection.
-- **Settings carry over.** A process inside the package read the existing `%AppData%\AIChatRTLFixer\settings.json` — same file, same size — and a file it wrote landed in the real `%AppData%` folder, not in a package container. On this Windows version AppData is not redirected for packaged desktop apps, so the Store build and the installer build share one set of settings and one log. No migration code is needed.
+- **Settings carry over, and the redirection rule is narrower than expected.** A process inside the package read the existing `%AppData%\AIChatRTLFixer\settings.json` — same file, same size — and a new file it wrote landed in the real folder too, not in a package container. Running the same probe from the sibling KeyFix package, whose `%AppData%` folder did *not* already exist, produced the opposite result: the folder and file were created inside the container. So the rule appears to be that an app data folder already present on the machine is written through, while one the packaged app creates itself stays private to the package.
+
+  For this app that means a user coming from the installer keeps their settings and keeps using the same file, and a user who only ever installs from the Store gets a container-private folder that is perfectly self-consistent. Either way no migration code is needed. Worth re-checking on a future Windows build, since this is platform behaviour rather than anything the app controls.
 - **The update check does not run.** No update activity appears in the log from a packaged run, which is the `PackageContext` guard doing its job.
 
 ## Known gaps
