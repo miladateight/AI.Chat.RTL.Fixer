@@ -54,11 +54,18 @@ Two things cannot work the same way in a package, and the app detects which buil
 
 **Update checking.** The Store keeps its copy up to date, and a Store app that sends users elsewhere to fetch an installer is both confusing and against store policy. The packaged build does not offer the update check at all.
 
+## Verified on Windows 11 (build 26100)
+
+Run from the registered package on a machine that already had the installed build:
+
+- **It attaches and injects.** The packaged process discovered the running chat application, connected over CDP on `127.0.0.1`, and injected successfully. Package identity does not get in the way of the loopback connection.
+- **Settings carry over.** A process inside the package read the existing `%AppData%\AIChatRTLFixer\settings.json` — same file, same size — and a file it wrote landed in the real `%AppData%` folder, not in a package container. On this Windows version AppData is not redirected for packaged desktop apps, so the Store build and the installer build share one set of settings and one log. No migration code is needed.
+- **The update check does not run.** No update activity appears in the log from a packaged run, which is the `PackageContext` guard doing its job.
+
 ## Known gaps
 
-- **Whether settings carry over from an installer-based install is untested.** Under MSIX, *writes* to `%AppData%` are redirected into the package's own container. Reads are usually a merged view, so the packaged build may well see an existing installer's `settings.json` and start with the user's enabled apps, font, copy mode and language intact — but "usually" is not a thing to ship on. Install the package on a machine that already has the installer version and look. If the settings are not there, a one-time import on first packaged run is needed.
-- **Both builds can be installed at once.** They share the `Local\AIChatRTLFixer` mutex, so only one runs and the second exits quietly — no duplicate tray icons, but also no explanation to the user. Worth handling before the Store listing goes live.
-- **The packaged build has not been run end to end.** The package builds, signs and passes `makeappx` validation; attaching to a real chat application from inside the container, relaunching a target app, and the clipboard path all still need to be exercised on a machine with the package installed.
+- **Both builds cannot run at once, and the loser says nothing.** They share the `Local\AIChatRTLFixer` mutex, so whichever starts second exits silently. This is not theoretical: during the testing above, launching the packaged build while the installed one was still running produced no window, no message, and a log filling up with entries from the *other* process — which is exactly how it would look to a confused user. Worth handling before the Store listing goes live.
+- **The clipboard path and a target-app relaunch were not exercised** from inside the package. Attach and inject were.
 
 ## Certification notes
 
