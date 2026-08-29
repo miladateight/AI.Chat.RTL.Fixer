@@ -12,8 +12,10 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        // Held for the life of the process. The second copy does not exit here:
+        // it reads settings first so it can say so in the user's own language,
+        // which is the whole point of an app for people who read right-to-left.
         using var instanceMutex = new Mutex(initiallyOwned: true, "Local\\AIChatRTLFixer", out var isFirstInstance);
-        if (!isFirstInstance) return;
 
         AppPaths.EnsureDirectories();
         using var logger = new SafeLogger(AppPaths.LogPath, LogLevel.Information, developerMode: false);
@@ -31,6 +33,21 @@ internal static class Program
         // package's own startup task, controlled from Settings > Apps > Startup.
         if (!PackageContext.IsPackaged)
             settings.StartWithWindows = StartupManager.IsEnabled();
+
+        if (!isFirstInstance)
+        {
+            // Exiting quietly made a tray app look broken: nothing appeared, so
+            // the natural next move was to launch it again. Now it says where the
+            // copy that is already running can be found.
+            ApplicationConfiguration.Initialize();
+            Loc.SetLanguage(settings.UiCulture);
+            MessageBox.Show(
+                Loc.T("app.alreadyRunning"),
+                Constants.ProductName,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
 
         var profiles = new ProfileRegistry();
         var watcher = new ProcessWatcher(profiles, logger);

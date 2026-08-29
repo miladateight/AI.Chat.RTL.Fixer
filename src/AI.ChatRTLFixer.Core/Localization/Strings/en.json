@@ -75,6 +75,7 @@
   "update.upToDate": "You are on the latest version.",
   "browser.confirm": "Browser targeting can detect supported pages in your browser. A relaunch requires a separate confirmation and may close and reopen that browser. Continue?",
   "startup.failed": "The startup setting could not be updated. Please try again.",
+  "app.alreadyRunning": "AI RTL Fixer is already running. Look for its icon in the notification area, next to the clock.",
   "about.body": "{0} v{1}\n\nRight-to-left text for desktop AI chats. Chat text becomes readable; code, commands and paths stay left-to-right.\n\n{2}",
   "list.separator": ", ",
   "relaunch.blocked.otherWindows": "{0} has more than one window open. Closing one and reopening it would just hand the launch back to the others, so nothing was changed.\n\nClose the other {0} windows, then try again.",
